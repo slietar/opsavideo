@@ -16,9 +16,6 @@ class Application {
 
     this.currentWindow = null;
     this.updateWindow('loading');
-
-    /* this.devices = [['Current device', 'Default']];
-    this.updateWindow('devices', this.devices); */
   }
 
   async connect(attemptsLeft = 5) {
@@ -68,13 +65,13 @@ class Application {
           model: "Chromecast Ultra",
           name: "SalonTV 4K",
           uuid: "59ffe8e8-8014-5688-20e0-800703789c9f"
-        }); */
+        });
 
         return this.server.request('device.list');
       })
       .then((devices) => {
-        this.devices = devices.map(([uuid, name, model]) => ({ uuid, name, model }));
-        this.updateWindow('devices', this.devices);
+        this.devices = devices.map(([uuid, name, model]) => ({ uuid, name, model })); */
+        this.updateWindow('devices');
       })
       .catch((err) => {
         console.error(err.message);
@@ -121,18 +118,24 @@ class WindowLoading {
 }
 
 class WindowDevices {
-  constructor(app, element, devices) {
+  constructor(app, element) {
     this.app = app;
     this.element = element;
-
-    this.devices = devices;
   }
 
   render() {
+    this.stopDiscovery = this.app.server.subscribe('ccdiscovery', {}, (chromecasts) => {
+      this.renderDevices(chromecasts.map(([uuid, name, model]) => ({
+        uuid, name, model
+      })));
+    });
+  }
+
+  renderDevices(devices) {
     let ul = this.element.querySelector('ul');
     ul.innerHTML = '';
-    
-    for (let device of this.devices) {
+
+    for (let device of devices) {
       let li = document.createElement('li');
       li.innerHTML = `<button type="button"><div class="device-name">${device.name}</div><div class="device-model">${device.model}</div></button>`;
 
@@ -146,7 +149,7 @@ class WindowDevices {
   }
 
   unrender() {
-
+    this.stopDiscovery();
   }
 }
 
@@ -167,28 +170,28 @@ class WindowApplication {
     deviceInfo.addEventListener('click', (event) => {
       event.preventDefault();
 
-      this.app.updateWindow('devices', this.app.devices);
+      this.app.updateWindow('devices');
     });
 
 
     this.app.server.request('listfiles')
       .then((files) => {
         let ul = this.element.querySelector('.file-list');
-        
+
         ul.innerHTML = files.map(([filename, basename, size]) => `<li><button class="file-item"><img src="https://via.placeholder.com/40" class="file-thumbnail" /><div class="file-info"><div class="file-name">${basename}</div><div class="file-details">${humanSize(size)}</div></div></button></li>`).join('');
 
         ul.classList.remove('loading');
       });
 
 
-    this.app.server.request('device.status', this.device.uuid)
+    /* this.app.server.request('device.status', this.device.uuid)
       .then(([ctrlName, ctrlIcon]) => {
         this.element.querySelector('.play-name').innerHTML = ctrlName;
 
         if (ctrlIcon !== null) {
           this.element.querySelector('.play-thumbnail').setAttribute('src', ctrlIcon);
         }
-      });
+      }); */
   }
 
   unrender() {
@@ -197,110 +200,96 @@ class WindowApplication {
 }
 
 
+/*
+ * ServerIO
+ *
+ * Message format
+ *  - message type
+ *     0: request,
+ *     1: response,
+ *     2: subscription request,
+ *     3: subscription end,
+ *     4: subscription message
+ *  - index
+ *  - method (if request or subscription request)
+ *  - data (except subscription end)
+ *
+ */
 class ServerIO {
   constructor() {
     this._socket = null;
 
-    this.requests = [];
+    this.index = 0;
+
+    this.requests = {};
+    this.subscriptions = {};
   }
 
-  listen() {
-    // TODO
+  request(method, data = {}) {
+    console.info('REQUEST', method);
+
+    let deferred = defer();
+    let index = ++this.index;
+
+    let callback = (data) => {
+      deferred.resolve(data);
+      delete this.requests[index];
+    };
+
+    this.requests[index] = {
+      callback,
+      data,
+      method
+    };
+
+    this._socket.send(JSON.stringify([0, index, method, data]));
+
+    return deferred.promise;
   }
 
-  request(type, payload = {}) {
-    this._socket.send(JSON.stringify([type, payload]));
+  subscribe(method, data = {}, callback) {
+    let index = ++this.index;
 
-    return new Promise((resolve, reject) => {
-      let listener = (event) => {
-        let [receivedType, receivedPayload] = JSON.parse(event.data);
+    this.subscriptions[index] = {
+      callback,
+      data,
+      method
+    };
 
-        if (receivedType === type) {
-          this._socket.removeEventListener('message', listener);
-          this.requests.splice(this.requests.indexOf(request), 1);
+    this._socket.send(JSON.stringify([2, index, method, data]));
 
-          resolve(receivedPayload);
-        }
-      };
-
-      let request = [type, payload, listener];
-
-      this._socket.addEventListener('message', listener);
-      this.requests.push(request);
-    });
-  }
-
-  updateSocket(socket) {
-    this._socket = socket;
-
-    let requests = this.requests;
-    this.requests = [];
-
-    for (let [type, payload, listener] of requests) {
-      this._socket.send(JSON.stringify([type, payload]));
-      this._socket.addEventListener('message', listener);
-    }
-  }
-}
-
-class _ServerIO {
-  constructor() {
-    this.listeners = {};
-    this._socket = null;
+    return () => {
+      this._socket.send(JSON.stringify([3, index]));
+      delete this.subscriptions[index];
+    };
   }
 
   updateSocket(socket) {
     this._socket = socket;
 
     this._socket.addEventListener('message', (event) => {
-      let [type, payload] = JSON.parse(event.data);
-      this._emit(type, payload);
-    });
-  }
+      let [kind, ...payload] = JSON.parse(event.data);
 
-  on(type, listener) {
-    if (!this.listeners[type]) {
-      this.listeners[type] = [];
-    }
+      if (kind === 1) { // response
+        let [index, data] = payload;
+        this.requests[index].callback(data);
 
-    this.listeners[type].push(listener);
-  }
-
-  off(type, listener) {
-    if (this.listeners[type]) {
-      let index = this.listeners[type].indexOf(listener);
-
-      if (index >= 0) {
-        this.listeners[type].splice(index, 1);
+        delete this.requests[index];
+      } else if (kind === 4) { // sub message
+        let [index, data] = payload;
+        this.subscriptions[index].callback(data);
       }
-    }
-  }
-
-  once(type, listener) {
-    let _listener = (event) => {
-      listener(event);
-      this.off(type, _listener);
-    };
-
-    this.on(type, _listener);
-  }
-
-  _emit(type, event) {
-    if (this.listeners[type]) {
-      for (let listener of this.listeners[type]) {
-        listener(event);
-      }
-    }
-  }
-
-  receive(type) {
-    return new Promise((resolve, reject) => {
-      this.once(type, resolve);
     });
-  }
 
-  send(type, payload = null) {
-    this._socket.send(JSON.stringify([type, payload]));
+    for (let index in this.requests) {
+      let req = this.requests[index];
+      this._socket.send(JSON.stringify([0, index, req.method, req.data]));
+    }
+
+    for (let index in this.subscriptions) {
+      let sub = this.subscriptions[index];
+      this._socket.send(JSON.stringify([2, index, sub.method, sub.data]));
+    }
   }
 }
 
