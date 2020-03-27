@@ -178,12 +178,22 @@ class WindowApplication {
 
     let ul = this.element.querySelector('.file-list');
 
-    this.app.server.subscribe('listfiles', {}, (files) => {
+    this.app.server.subscribe('listfiles', {}, ({ files, medias }) => {
       ul.innerHTML = Object.values(files).map((file) => {
-        let imageUrl = file.movie && file.movie.image ? file.movie.image : "https://via.placeholder.com/40";
-        let title = (file.movie ? file.movie.title : file.title) + (file.series ? ` (season ${file.series.season}, episode ${file.series.episode})` : '');
+        let media = file.media ? medias[file.media] : null;
 
-        return `<li><button class="file-item"><img src="${imageUrl}" class="file-thumbnail" /><div class="file-info"><div class="file-name">${title}</div><div class="file-details">${file.movie && file.movie.kind ? file.movie.kind + ' • ' : ''}${file.movie && file.movie.year ? file.movie.year + ' • ' : ''}${humanSize(file.size)}</div></div></button></li>`
+        let imageUrl = media && media.image ? media.image : "https://via.placeholder.com/40";
+        let title = (media ? media.title : file.title) + (file.season && file.episode ? ` (season ${file.season}, episode ${file.episode})` : '');
+        let year = media && media.year || file.year;
+
+        let details = (file.quality ? file.quality : '')
+          + (file.quality && file.resolution ? '/' : '')
+          + (file.resolution ? file.resolution : '')
+          + (file.quality || file.resolution ? ' • ' : '')
+          + humanSize(file.size)
+          + (year ? ' • ' + year : '');
+
+        return `<li><button class="file-item"><img src="${imageUrl}" class="file-thumbnail" /><div class="file-info"><div class="file-name">${title}</div><div class="file-details">${details}</div></div></button></li>`
 
       });
 

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import websockets
 
 event_loop = asyncio.get_event_loop()
 
