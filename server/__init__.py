@@ -9,14 +9,6 @@ import time
 import uuid
 import websockets
 
-
-event_loop = asyncio.get_event_loop()
-
-# subs = {}
-# next_sub_index = 0
-
-# subs_discovery = set()
-
 class Noticeboard:
     def __init__(self, value):
         self._value = value
@@ -100,8 +92,7 @@ def discover_chromecasts(cb):
         return [str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name]
     
     def publish_chromecast():
-        data = [export_chromecast(cc) for cc in chromecasts.values()]
-        cb(data, loop=event_loop)
+        cb([export_chromecast(cc) for cc in chromecasts.values()])
     
     def add_chromecast(name):
         cc = pychromecast._get_chromecast_from_host(
@@ -144,19 +135,19 @@ async def listfiles(data):
 #        # print(chromecast.status)
 #        return [chromecast.status.display_name, chromecast.status.icon_url]
 
-
-s = Server()
-s.add_method("listfiles", listfiles)
-ccdiscovery = s.add_noticeboard('ccdiscovery', [])
-
-discover_chromecasts(ccdiscovery.publish_threadsafe)
-start_server = websockets.serve(s, "localhost", 8765)
-
-print("READY");
-
-try:
-    asyncio.get_event_loop().run_until_complete(start_server)
-    asyncio.get_event_loop().run_forever()
-except KeyboardInterrupt:
-    sys.exit(0)
-
+def main():
+  s = Server()
+  s.add_method("listfiles", listfiles)
+  ccdiscovery = s.add_noticeboard('ccdiscovery', [])
+  
+  event_loop = asyncio.get_event_loop()
+  discover_chromecasts(lambda data: ccdiscovery.publish_threadsafe(data, loop=event_loop))
+  start_server = websockets.serve(s, "localhost", 8765)
+  
+  print("READY");
+  
+  try:
+      asyncio.get_event_loop().run_until_complete(start_server)
+      asyncio.get_event_loop().run_forever()
+  except KeyboardInterrupt:
+      sys.exit(0)

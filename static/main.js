@@ -20,7 +20,12 @@ class Application {
 
   async connect(attemptsLeft = 5) {
     let deferred = defer();
-    let socket = new WebSocket("ws://localhost:8765", "protocolOne");
+    var socket;
+    if (location.protocol === "https:") {
+      socket = new WebSocket("wss://" + location.host + "/ws", "protocolOne");
+    } else {
+      socket = new WebSocket("ws://" + location.host + "/ws", "protocolOne");
+    }
 
     let closeListener = (event) => {
       if (attemptsLeft > 0) {
