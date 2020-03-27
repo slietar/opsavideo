@@ -124,6 +124,8 @@ class WindowDevices {
   }
 
   render() {
+    this.element.querySelector('ul').innerHTML = '';
+
     this.stopDiscovery = this.app.server.subscribe('ccdiscovery', {}, (chromecasts) => {
       this.renderDevices(chromecasts.map(([uuid, name, model]) => ({
         uuid, name, model

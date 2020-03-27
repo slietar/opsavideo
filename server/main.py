@@ -12,147 +12,145 @@ import websockets
 
 event_loop = asyncio.get_event_loop()
 
-chromecasts = {}
-subs = {}
-next_sub_index = 0
+# subs = {}
+# next_sub_index = 0
 
-subs_discovery = set()
+# subs_discovery = set()
 
-async def handler(websocket, path):
-    global next_sub_index
+class Noticeboard:
+    def __init__(self, value):
+        self._value = value
+        self._subscriptions = dict()
 
-    conn_addr = websocket.remote_address[0] + ":" + str(websocket.remote_address[1])
-    client_subs = {}
+    async def publish(self, value):
+        self._value = value
+        print("Publish " + repr(value))
+        for (client, index) in self._subscriptions.values():
+            await client.send(json.dumps([4, index, value]))
 
-    print("OPEN " + conn_addr)
+    async def __call__(self, value):
+        self.publish(value)
 
-    try:
-        while True:
-            msg = await websocket.recv()
-            payload = json.loads(msg)
+    def publish_threadsafe(self, value, *, loop):
+        asyncio.run_coroutine_threadsafe(self.publish(value), loop)
 
-            req_kind = payload[0]
-            index = payload[1]
+    async def subscribe(self, sub_index, client, index):
+        self._subscriptions[sub_index] = (client, index)
+        await client.send(json.dumps([4, index, self._value]))
 
-            if req_kind == 0: # request
-                method = payload[2]
-                req_data = payload[3]
+    def unsubscribe(self, sub_index):
+        del self._subscriptions[sub_index]
 
-                print("-> Received request '" + method + "'")
+class Server:
+    def __init__(self):
+        self._methods = dict()
+        self._noticeboards = dict()
+        self._next_sub_index = 0
 
-                res_data = await handle_request(method, req_data)
-                res = [1, index, res_data]
+    def add_noticeboard(self, name, value):
+        n = Noticeboard(value)
+        self._noticeboards[name] = n
+        return n
 
-                await websocket.send(json.dumps(res))
+    def add_method(self, name, f):
+        self._methods[name] = f
 
-                print("<- Answered request '" + method + "'")
+    async def __call__(self, websocket, path):
+        subs = dict()
+        try:
+            while True:
+                msg = await websocket.recv()
+                payload = json.loads(msg)
+                kind = payload[0]
+                index = payload[1]
 
-            elif req_kind == 2: # subscription request
-                method = payload[2]
-                req_data = payload[3]
+                if kind == 0: # request
+                    method = payload[2]
+                    data = payload[3]
 
-                sub_index = next_sub_index
-                next_sub_index += 1
+                    result = await self._methods[method](data)
+                    response = [1, index, result]
+                    await websocket.send(json.dumps(response))
 
-                subs[sub_index] = (websocket, index)
-                client_subs[index] = sub_index
+                elif kind == 2: # subscribe
+                    method = payload[2]
+                    print("Subscribe {} index={}".format(method, index))
 
-                print("-> Received subscription '" + method + "' (#" + str(sub_index) + ")")
+                    sub_index = self._next_sub_index
+                    self._next_sub_index += 1
+                    await self._noticeboards[method].subscribe(sub_index, websocket, index)
+                    subs[index] = (method, sub_index)
 
-                await handle_subreq(sub_index, method, req_data)
+                elif kind == 3: # unsubscribe
+                    print("Unsubscribe index={}".format(index))
+                    (method, sub_index) = subs[index]
+                    del subs[index]
+                    self._noticeboards[method].unsubscribe(sub_index)
 
-            elif req_kind == 3: # subscription stop
-                sub_index = client_subs[index]
+        except websockets.exceptions.ConnectionClosedOK:
+            pass
 
-                print("-> Canceled subscription (#" + str(sub_index) + ")")
+        finally:
+            for (method, sub_index) in subs.values():
+                self._noticeboards[method].unsubscribe(sub_index)
 
-                del client_subs[index]
-                del subs[sub_index]
+def discover_chromecasts(cb):
+    chromecasts = {}
+    def export_chromecast(cc):
+        return [str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name]
+    
+    def publish_chromecast():
+        data = [export_chromecast(cc) for cc in chromecasts.values()]
+        cb(data, loop=event_loop)
+    
+    def add_chromecast(name):
+        cc = pychromecast._get_chromecast_from_host(
+            listener.services[name],
+            tries=5,
+            blocking=False,
+        )
+    
+        chromecasts[name] = cc
+        publish_chromecast()
+    
+    def remove_chromecast(name):
+        del chromecasts[name]
+        publish_chromecast()
+    
+    listener, browser = pychromecast.discovery.start_discovery(add_chromecast, remove_chromecast)
 
-                await handle_substop(sub_index)
+async def listfiles(data):
+    filenames = glob.glob("tmp/**/*.mkv") + glob.glob("tmp/**/*.mp4")
+    response = []
 
-    except websockets.exceptions.ConnectionClosedOK:
-        pass
-    finally:
-        for index, sub_index in client_subs.items():
-            print("-- Canceled subscription (#" + str(sub_index) + ")")
+    for filename in filenames:
+        basename = os.path.basename(filename)
+        size = os.path.getsize(filename)
+        response.append([filename, basename, size])
 
-            await handle_substop(sub_index)
-            del subs[sub_index]
+    time.sleep(1)
 
-        print("CLOSE " + conn_addr)
+    return response
 
-
-async def handle_request(method, data):
-    if method == "device.list":
-        chromecasts = pychromecast.get_chromecasts(timeout=1)
-        return [[str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name] for cc in chromecasts]
-
-    elif method == "device.status":
-        device_uuid = uuid.UUID(data)
-
-        chromecast = next(cc for cc in chromecasts.values() if cc.device.uuid == device_uuid)
-        chromecast.wait()
-        # print(chromecast.status)
-        return [chromecast.status.display_name, chromecast.status.icon_url]
-
-    elif method == "listfiles":
-        filenames = glob.glob("tmp/**/*.mkv") + glob.glob("tmp/**/*.mp4")
-        response = []
-
-        for filename in filenames:
-            basename = os.path.basename(filename)
-            size = os.path.getsize(filename)
-            response.append([filename, basename, size])
-
-        time.sleep(4)
-
-        return response
-
-async def handle_subreq(sub_index, method, data):
-    if method == "ccdiscovery":
-        subs_discovery.add(sub_index)
-        await send_chromecasts()
-
-async def handle_substop(sub_index):
-    if sub_index in subs_discovery:
-        subs_discovery.discard(sub_index)
-
-async def send_sub(sub_index, data):
-    print("<- Sent subscription message (#" + str(sub_index) + ")")
-
-    (client, index) = subs[sub_index]
-    await client.send(json.dumps([4, index, data]))
-
-
-
-
-def add_chromecast(name):
-    cc = pychromecast._get_chromecast_from_host(
-        listener.services[name],
-        tries=5,
-        blocking=False,
-    )
-
-    chromecasts[name] = cc
-    asyncio.run_coroutine_threadsafe(send_chromecasts(), event_loop)
-
-def remove_chromecast(name):
-    del chromecasts[name]
-    asyncio.run_coroutine_threadsafe(send_chromecasts(), event_loop)
-
-async def send_chromecasts():
-    for sub_index in subs_discovery:
-        await send_sub(sub_index, list(export_chromecast(cc) for cc in chromecasts.values()))
-
-def export_chromecast(cc):
-    return [str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name]
+#    if method == "device.list":
+#        chromecasts = pychromecast.get_chromecasts(timeout=1)
+#        return [[str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name] for cc in chromecasts]
+#
+#    elif method == "device.status":
+#        device_uuid = uuid.UUID(data)
+#
+#        chromecast = next(cc for cc in chromecasts.values() if cc.device.uuid == device_uuid)
+#        chromecast.wait()
+#        # print(chromecast.status)
+#        return [chromecast.status.display_name, chromecast.status.icon_url]
 
 
+s = Server()
+s.add_method("listfiles", listfiles)
+ccdiscovery = s.add_noticeboard('ccdiscovery', [])
 
-
-listener, browser = pychromecast.discovery.start_discovery(add_chromecast, remove_chromecast)
-start_server = websockets.serve(handler, "localhost", 8765)
+discover_chromecasts(ccdiscovery.publish_threadsafe)
+start_server = websockets.serve(s, "localhost", 8765)
 
 print("READY");
 
