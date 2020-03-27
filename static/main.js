@@ -20,7 +20,7 @@ class Application {
 
   async connect(attemptsLeft = 5) {
     let deferred = defer();
-    let socket = new WebSocket("ws://localhost:8765", "protocolOne");
+    let socket = new WebSocket("ws://localhost:8765");
 
     let closeListener = (event) => {
       if (attemptsLeft > 0) {
@@ -176,14 +176,19 @@ class WindowApplication {
     });
 
 
-    this.app.server.request('listfiles')
-      .then((files) => {
-        let ul = this.element.querySelector('.file-list');
+    let ul = this.element.querySelector('.file-list');
 
-        ul.innerHTML = files.map(([filename, basename, size]) => `<li><button class="file-item"><img src="https://via.placeholder.com/40" class="file-thumbnail" /><div class="file-info"><div class="file-name">${basename}</div><div class="file-details">${humanSize(size)}</div></div></button></li>`).join('');
+    this.app.server.subscribe('listfiles', {}, (files) => {
+      ul.innerHTML = Object.values(files).map((file) => {
+        let imageUrl = file.movie && file.movie.image ? file.movie.image : "https://via.placeholder.com/40";
+        let title = (file.movie ? file.movie.title : file.title) + (file.series ? ` (season ${file.series.season}, episode ${file.series.episode})` : '');
 
-        ul.classList.remove('loading');
+        return `<li><button class="file-item"><img src="${imageUrl}" class="file-thumbnail" /><div class="file-info"><div class="file-name">${title}</div><div class="file-details">${file.movie && file.movie.kind ? file.movie.kind + ' • ' : ''}${file.movie && file.movie.year ? file.movie.year + ' • ' : ''}${humanSize(file.size)}</div></div></button></li>`
+
       });
+
+      ul.classList.remove('loading');
+    });
 
 
     /* this.app.server.request('device.status', this.device.uuid)

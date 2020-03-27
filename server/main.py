@@ -1,7 +1,5 @@
 import asyncio
-import glob
 import json
-import os
 import pychromecast
 import pychromecast.discovery
 import sys
@@ -9,13 +7,10 @@ import time
 import uuid
 import websockets
 
+from media import MediaManager
+
 
 event_loop = asyncio.get_event_loop()
-
-# subs = {}
-# next_sub_index = 0
-
-# subs_discovery = set()
 
 class Noticeboard:
     def __init__(self, value):
@@ -24,14 +19,14 @@ class Noticeboard:
 
     async def publish(self, value):
         self._value = value
-        print("Publish " + repr(value))
+        # print("Publish " + repr(value))
         for (client, index) in self._subscriptions.values():
             await client.send(json.dumps([4, index, value]))
 
     async def __call__(self, value):
         self.publish(value)
 
-    def publish_threadsafe(self, value, *, loop):
+    def publish_threadsafe(self, value, *, loop=event_loop):
         asyncio.run_coroutine_threadsafe(self.publish(value), loop)
 
     async def subscribe(self, sub_index, client, index):
@@ -94,48 +89,34 @@ class Server:
             for (method, sub_index) in subs.values():
                 self._noticeboards[method].unsubscribe(sub_index)
 
+
+
 def discover_chromecasts(cb):
     chromecasts = {}
     def export_chromecast(cc):
         return [str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name]
-    
+
     def publish_chromecast():
         data = [export_chromecast(cc) for cc in chromecasts.values()]
         cb(data, loop=event_loop)
-    
+
     def add_chromecast(name):
         cc = pychromecast._get_chromecast_from_host(
             listener.services[name],
             tries=5,
             blocking=False,
         )
-    
+
         chromecasts[name] = cc
         publish_chromecast()
-    
-    def remove_chromecast(name):
+
+    def remove_chromecast(name, service):
         del chromecasts[name]
         publish_chromecast()
-    
+
     listener, browser = pychromecast.discovery.start_discovery(add_chromecast, remove_chromecast)
 
-async def listfiles(data):
-    filenames = glob.glob("tmp/**/*.mkv") + glob.glob("tmp/**/*.mp4")
-    response = []
 
-    for filename in filenames:
-        basename = os.path.basename(filename)
-        size = os.path.getsize(filename)
-        response.append([filename, basename, size])
-
-    time.sleep(1)
-
-    return response
-
-#    if method == "device.list":
-#        chromecasts = pychromecast.get_chromecasts(timeout=1)
-#        return [[str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name] for cc in chromecasts]
-#
 #    elif method == "device.status":
 #        device_uuid = uuid.UUID(data)
 #
@@ -146,8 +127,13 @@ async def listfiles(data):
 
 
 s = Server()
-s.add_method("listfiles", listfiles)
+
 ccdiscovery = s.add_noticeboard('ccdiscovery', [])
+listfiles = s.add_noticeboard('listfiles', {})
+
+m = MediaManager("tmp", listfiles)
+m.start()
+
 
 discover_chromecasts(ccdiscovery.publish_threadsafe)
 start_server = websockets.serve(s, "localhost", 8765)
