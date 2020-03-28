@@ -71,7 +71,12 @@ class Application {
       })
       .then((devices) => {
         this.devices = devices.map(([uuid, name, model]) => ({ uuid, name, model })); */
-        this.updateWindow('devices');
+
+        // this.updateWindow('devices');
+        this.updateWindow('application', {
+          name: 'SalonTV 4K',
+          model: 'Chromecast Ultra'
+        });
       })
       .catch((err) => {
         console.error(err.message);
@@ -176,7 +181,7 @@ class WindowApplication {
     });
 
 
-    let ul = this.element.querySelector('.file-list');
+    /* let ul = this.element.querySelector('.file-list');
 
     this.app.server.subscribe('listfiles', {}, ({ files, medias }) => {
       ul.innerHTML = Object.values(files).map((file) => {
@@ -198,6 +203,39 @@ class WindowApplication {
       });
 
       ul.classList.remove('loading');
+    }); */
+
+    let ul = this.element.querySelector('.media-list');
+
+    this.app.server.subscribe('listfiles', {}, ({ files, medias }) => {
+      let items = new Set();
+
+      Object.values(files).forEach((file, index) => {
+        if (file.media) {
+          items.add(file.media);
+        } else {
+          items.add(index);
+        }
+      });
+
+      ul.innerHTML = '';
+
+      for (let item of items) {
+        let title;
+        let imageUrl = null;
+
+        if (typeof item === 'string') {
+          let media = medias[item];
+
+          imageUrl = media.image;
+          title = media.title;
+        } else {
+          let file = Object.values(files)[item]; // tmp
+          title = file.title;
+        }
+
+        ul.innerHTML += `<li><button class="media-item"><div class="media-image" ${imageUrl ? ` style="background-image: url(${imageUrl})"` : ''}></div><div class="media-name">${title}</div></button></li>`;
+      }
     });
 
 

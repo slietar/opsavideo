@@ -22,15 +22,20 @@
     <div id="window-app">
       <header>
         <div class="title">Opsa Video</div>
+        <nav>
+          <ul>
+            <li><a href="#">Device</a></li>
+            <li><a href="#" class="active">Movies</a></li>
+            <li><a href="#">Music</a></li>
+          </ul>
+        </nav>
         <a href="#" class="device-info">
           <div class="device-name">SalonTV 4K</div>
           <div class="device-model">Chromecast Ultra</div>
         </a>
       </header>
       <div class="app-container">
-        <h2>Downloaded files</h2>
-
-        <ul class="file-list loading">
+        <ul class="file-list loading" style="display: none;">
           <li>
             <button type="button" class="file-item">
               <span class="file-thumbnail"></span>
@@ -68,6 +73,48 @@
             </button>
           </li>
         </ul>
+
+        <div class="media-list-container">
+          <ul class="media-list">
+            <li>
+              <button type="button" class="media-item">
+                <div class="media-image" style="background-image: url(https://m.media-amazon.com/images/M/MV5BNzVkYWY4NzYtMWFlZi00YzkwLThhZDItZjcxYTU4ZTMzMDZmXkEyXkFqcGdeQXVyODUxOTU0OTg@._V1_.jpg,675,1000)"></div>
+                <div class="media-name">Brooklyn Nine-Nine</div>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="media-item">
+                <div class="media-image" style="background-image: url(https://m.media-amazon.com/images/M/MV5BNzVkYWY4NzYtMWFlZi00YzkwLThhZDItZjcxYTU4ZTMzMDZmXkEyXkFqcGdeQXVyODUxOTU0OTg@._V1_.jpg,675,1000)"></div>
+                <div class="media-name">Brooklyn Nine-Nine</div>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="media-item">
+                <div class="media-image" style="background-image: url(https://m.media-amazon.com/images/M/MV5BNzVkYWY4NzYtMWFlZi00YzkwLThhZDItZjcxYTU4ZTMzMDZmXkEyXkFqcGdeQXVyODUxOTU0OTg@._V1_.jpg,675,1000)"></div>
+                <div class="media-name">Brooklyn Nine-Nine</div>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="media-item">
+                <div class="media-image" style="background-image: url(https://m.media-amazon.com/images/M/MV5BNzVkYWY4NzYtMWFlZi00YzkwLThhZDItZjcxYTU4ZTMzMDZmXkEyXkFqcGdeQXVyODUxOTU0OTg@._V1_.jpg,675,1000)"></div>
+                <div class="media-name">Brooklyn Nine-Nine</div>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="media-item">
+                <div class="media-image" style="background-image: url(https://m.media-amazon.com/images/M/MV5BNzVkYWY4NzYtMWFlZi00YzkwLThhZDItZjcxYTU4ZTMzMDZmXkEyXkFqcGdeQXVyODUxOTU0OTg@._V1_.jpg,675,1000)"></div>
+                <div class="media-name">Brooklyn Nine-Nine</div>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="media-item">
+                <div class="media-image" style="background-image: url(https://m.media-amazon.com/images/M/MV5BNzVkYWY4NzYtMWFlZi00YzkwLThhZDItZjcxYTU4ZTMzMDZmXkEyXkFqcGdeQXVyODUxOTU0OTg@._V1_.jpg,675,1000)"></div>
+                <div class="media-name">Brooklyn Nine-Nine</div>
+              </button>
+            </li>
+          </ul>
+        </div>
+
       </div>
       <div class="play-bar">
         <img src="https://via.placeholder.com/50" class="play-thumbnail" />
