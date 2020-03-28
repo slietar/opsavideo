@@ -199,28 +199,36 @@ button {
   background-color: var(--back-color);
   min-height: 100vh;
 
-  @for $i from 1 to 6 {
-    --front-color#{$i}: #{lighten(#000, $i * 10%)};
+  @for $i from 0 to 6 {
+    --front-color-#{$i}: #{lighten(#000, $i * 10%)};
+  }
+
+  @for $i from 0 to 6 {
+    --back-color-#{$i}: #{darken(#fff, $i * 10%)};
   }
 
   @media (prefers-color-scheme: dark) {
     --back-color: #111;
     --front-color: #fff;
 
-    @for $i from 1 to 6 {
-      --front-color#{$i}: #{darken(#fff, $i * 10%)};
+    @for $i from 0 to 6 {
+      --front-color-#{$i}: #{darken(#fff, $i * 10%)};
+    }
+
+    @for $i from 0 to 6 {
+      --back-color-#{$i}: #{lighten(#000, $i * 10%)};
     }
   }
 
   color: var(--front-color);
 
+  /* HEIGHT: 5.1rem, excluding padding: 3.1rem */
   header {
-    //border-bottom: 1px solid #ccc;
-    padding: 1.3rem 5vw;
+    padding: 1rem 5vw;
 
     .title {
       display: inline-block;
-      padding: 0.5rem 0;
+      margin: 0.8rem 0;
 
       font-family: "Public Sans", sans-serif;
       font-size: 1.5rem;
@@ -230,20 +238,67 @@ button {
     }
 
     .device {
-      // .device-info size: 1.1 + 0.9 + 0.3 = 2.3 rem
-      &-info {
+      &-data {
+        width: 250px;
         float: right;
-        line-height: 1;
 
-        &:hover {
-          .device-name {
-            color: darken(#0074d9, 10%);
+        &:hover, &.dropdown-active {
+          .device-current {
+            background-color: var(--back-color-0);
+            border-color: var(--back-color-2);
           }
 
-          .device-model {
-            color: #0074d9;
+          .device-dropdown-arrow {
+            color: var(--front-color-0);
           }
         }
+
+        &.dropdown-active {
+          .device-current {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+          }
+
+          .device-select {
+            display: block;
+          }
+
+          .device-current, .device-select li {
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+          }
+        }
+      }
+
+      &-current {
+        display: flex;
+        width: 100%;
+
+        background-color: var(--back-color-1); // #e6e6e6
+        padding: 0.4rem 0.9rem;
+
+        border: 1px solid transparent;
+        border-radius: 3px;
+
+        transition: all 200ms;
+      }
+
+      &-dropdown-arrow {
+        width: 0;
+        height: 0;
+        
+        margin: auto 0 auto auto;
+
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-top: 7px solid currentColor;
+
+        color: var(--back-color-5);
+        transition: color 200ms;
+      }
+
+      /* HEIGHT: 2.3rem */
+      &-info {
+        line-height: 1;
       }
 
       &-name {
@@ -260,12 +315,49 @@ button {
 
         transition: color 300ms;
       }
+
+      &-select {
+        display: none;
+        width: 250px;
+
+        position: absolute;
+        top: 4.2rem;
+
+        z-index: 10;
+
+        li {
+          background-color: var(--back-color);
+          border: solid var(--back-color-2);
+          border-width: 0 1px 1px 1px;
+
+          font-size: 1rem;
+
+          &:first-of-type {
+            border-top: none;
+          }
+
+          &:last-of-type {
+            border-radius: 0 0 3px 3px;
+          }
+
+          &:hover {
+            background-color: var(--back-color-0);
+          }
+        }
+
+        a {
+          display: block;
+          padding: 0.4rem 0.9rem;
+        }
+      }
     }
   }
 
   nav {
     display: inline-block;
-    margin-left: 100px;
+    margin: 1.05rem 0 0 100px;
+
+    vertical-align: top;
 
     li {
       display: inline-block;
@@ -276,7 +368,7 @@ button {
       border-bottom: 2px solid transparent;
       padding-bottom: 2px;
 
-      color: var(--front-color5);
+      color: var(--front-color-5);
       font-size: 0.8rem;
       font-weight: 600;
       text-transform: uppercase;
@@ -290,9 +382,9 @@ button {
       }
 
       &:not(.active):hover {
-        border-bottom-color: var(--front-color2);
+        border-bottom-color: var(--front-color-2);
 
-        color: var(--front-color2);
+        color: var(--front-color-2);
       }
     }
   }

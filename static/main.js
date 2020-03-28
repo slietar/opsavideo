@@ -169,7 +169,8 @@ class WindowApplication {
   }
 
   render() {
-    let deviceInfo = this.element.querySelector('header .device-info');
+    let deviceData = this.element.querySelector('header .device-data');
+    let deviceInfo = deviceData.querySelector('.device-current');
 
     deviceInfo.querySelector('.device-name').innerHTML = this.device.name;
     deviceInfo.querySelector('.device-model').innerHTML = this.device.model;
@@ -177,33 +178,13 @@ class WindowApplication {
     deviceInfo.addEventListener('click', (event) => {
       event.preventDefault();
 
-      this.app.updateWindow('devices');
+      deviceData.classList.toggle('dropdown-active');
     });
 
+    deviceData.addEventListener('blur', (event) => {
+      deviceData.classList.remove('dropdown-active');
+    }, true /* inherit listener */);
 
-    /* let ul = this.element.querySelector('.file-list');
-
-    this.app.server.subscribe('listfiles', {}, ({ files, medias }) => {
-      ul.innerHTML = Object.values(files).map((file) => {
-        let media = file.media ? medias[file.media] : null;
-
-        let imageUrl = media && media.image ? media.image : "https://via.placeholder.com/40";
-        let title = (media ? media.title : file.title) + (file.season && file.episode ? ` (season ${file.season}, episode ${file.episode})` : '');
-        let year = media && media.year || file.year;
-
-        let details = (file.quality ? file.quality : '')
-          + (file.quality && file.resolution ? '/' : '')
-          + (file.resolution ? file.resolution : '')
-          + (file.quality || file.resolution ? ' • ' : '')
-          + humanSize(file.size)
-          + (year ? ' • ' + year : '');
-
-        return `<li><button class="file-item"><img src="${imageUrl}" class="file-thumbnail" /><div class="file-info"><div class="file-name">${title}</div><div class="file-details">${details}</div></div></button></li>`
-
-      });
-
-      ul.classList.remove('loading');
-    }); */
 
     let ul = this.element.querySelector('.media-list');
 
@@ -237,16 +218,6 @@ class WindowApplication {
         ul.innerHTML += `<li><button class="media-item"><div class="media-image" ${imageUrl ? ` style="background-image: url(${imageUrl})"` : ''}></div><div class="media-name">${title}</div></button></li>`;
       }
     });
-
-
-    /* this.app.server.request('device.status', this.device.uuid)
-      .then(([ctrlName, ctrlIcon]) => {
-        this.element.querySelector('.play-name').innerHTML = ctrlName;
-
-        if (ctrlIcon !== null) {
-          this.element.querySelector('.play-thumbnail').setAttribute('src', ctrlIcon);
-        }
-      }); */
   }
 
   unrender() {
