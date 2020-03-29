@@ -96,14 +96,21 @@ class MediaManager:
             if imdb_id in self.medias:
                 return self.medias[imdb_id]
 
-            res = urllib.request.urlopen(f"https://www.imdb.com/title/{imdb_id}/")
-            raw_data = res.read().decode("utf-8")
 
-            tree = lxml.html.fromstring(raw_data)
-            elements = tree.find_class("summary_text")
+            tree = lxml.html.fromstring(request(f"https://www.imdb.com/title/{imdb_id}/"))
 
             description = tree.find_class("summary_text")[0].text_content().strip()
             duration = tree.xpath("//time")[0].text_content().strip()
+
+
+            tree = lxml.html.fromstring(request(f"https://www.imdb.com/title/{imdb_id}/mediaindex?refine=still_frame"))
+
+            wallpaper = None
+            wallpaperElement = tree.xpath("""//img[@width="100"]""")
+
+            if wallpaperElement:
+                wallpaper = wallpaperElement[0].get("src")
+
 
             self.medias[imdb_id] = {
                 'description': description,
@@ -113,6 +120,7 @@ class MediaManager:
                 'image': result.get('i'),
                 'main_actors': result['s'],
                 'title': result['l'],
+                'wallpaper': wallpaper,
                 'year': result.get('y')
             }
 

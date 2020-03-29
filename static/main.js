@@ -169,6 +169,10 @@ class WindowApplication {
   }
 
   render() {
+    let appMedia = this.element.querySelector('.app-media');
+    let appMediaList = this.element.querySelector('.app-container');
+
+
     let deviceData = this.element.querySelector('header .device-data');
     let deviceInfo = deviceData.querySelector('.device-current');
 
@@ -189,33 +193,111 @@ class WindowApplication {
     let ul = this.element.querySelector('.media-list');
 
     this.app.server.subscribe('listfiles', {}, ({ files, medias }) => {
-      let items = new Set();
+      let objects = [];
+      let referencedMedias = {};
 
-      Object.values(files).forEach((file, index) => {
+      for (let [filepath, file] of Object.entries(files)) {
         if (file.media) {
-          items.add(file.media);
+          if (referencedMedias[file.media]) {
+            let object = objects[referencedMedias[file.media]];
+            object.files.push(filepath);
+          } else {
+            referencedMedias[file.media] = objects.length;
+
+            objects.push({
+              type: 'media',
+              files: [filepath],
+              mediaId: file.media
+            });
+          }
         } else {
-          items.add(index);
+          objects.push({
+            type: 'file',
+            filepath
+          });
         }
-      });
+      }
+
 
       ul.innerHTML = '';
 
-      for (let item of items) {
-        let title;
-        let imageUrl = null;
+      for (let object of objects) {
+        let media = object.type === 'media' ? medias[object.mediaId] : null;
+        let file = object.type === 'file' ? files[object.filepath] : null;
 
-        if (typeof item === 'string') {
-          let media = medias[item];
+        let title = media && media.title || file.title;
+        let imageUrl = media && media.image || null;
+        let description = media && media.description || null;
+
+        /* if (object.type === 'media') {
+          let media = medias[object.mediaId];
 
           imageUrl = media.image;
           title = media.title;
         } else {
-          let file = Object.values(files)[item]; // tmp
+          let file = files[object.filepath];
           title = file.title;
-        }
+        } */
 
-        ul.innerHTML += `<li><button class="media-item"><div class="media-image" ${imageUrl ? ` style="background-image: url(${imageUrl})"` : ''}></div><div class="media-name">${title}</div></button></li>`;
+        let button = document.createElement('button');
+        button.classList.add('media-item');
+        button.innerHTML = `<div class="media-image" ${imageUrl ? ` style="background-image: url(${imageUrl})"` : ''}></div><div class="media-name">${title}</div>`;
+
+        let li = document.createElement('li');
+        li.appendChild(button);
+        ul.appendChild(li);
+
+        button.addEventListener('click', () => {
+          appMedia.classList.add('active');
+          appMediaList.classList.add('hidden');
+
+          appMedia.querySelector('h1').innerHTML = title;
+
+          if (imageUrl) {
+            appMedia.querySelector('.app-media-image').style['background-image'] = `url(${imageUrl})`;
+          }
+
+          let p = appMedia.querySelector('p');
+          if (description) {
+            p.innerHTML = description;
+          } else {
+            p.style.display = 'none';
+          }
+
+          if (media && media.wallpaper) {
+            let wallpaperUrl = media.wallpaper.substring(0, media.wallpaper.search('@._V1_')) + '@._V1_.jpg'; // TODO: move to server
+            appMedia.querySelector('.app-media-background').style['background-image'] = `url(${wallpaperUrl})`;
+          }
+        });
+
+        // ul.innerHTML += `<li><button class="media-item"><div class="media-image" ${imageUrl ? ` style="background-image: url(${imageUrl})"` : ''}></div><div class="media-name">${title}</div></button></li>`;
+      }
+
+      return;
+
+      for (let element of ul.querySelectorAll('.media-item')) {
+        element.addEventListener('click', (event) => {
+          event.preventDefault();
+
+          let appMedialist = this.element.querySelector('.app-container');
+          appMedialist.classList.add('hidden');
+
+          let appMedia = this.element.querySelector('.app-media');
+          let image = element.querySelector('.media-image');
+          let imageRect = image.getBoundingClientRect();
+          let bodyRect = document.body.getBoundingClientRect();
+
+          // let ratio = imageRect.width / 300;
+
+          image.classList.add('moving');
+          image.style.setProperty('--position-x', (imageRect.left - bodyRect.left) + 'px');
+          image.style.setProperty('--position-y', (imageRect.top - bodyRect.top) + 'px');
+
+          setTimeout(() => {
+            appMedia.classList.add('active');
+            // image.classList.add('moved');
+          }, 10);
+        });
       }
     });
   }
