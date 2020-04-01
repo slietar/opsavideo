@@ -10,6 +10,8 @@ from opsavideo.media import MediaManager
 from opsavideo.server import Noticeboard, Server
 
 
+chromecasts_obj = dict()
+
 def discover_chromecasts(cb):
     chromecasts = {}
     def export_chromecast(cc):
@@ -26,6 +28,7 @@ def discover_chromecasts(cb):
             blocking=False,
         )
 
+        chromecasts_obj[cc.device.uuid] = cc;
         chromecasts[name] = cc
         publish_chromecast()
 
@@ -48,10 +51,29 @@ def discover_chromecasts(cb):
 s = Server()
 
 ccdiscovery = s.add_noticeboard('ccdiscovery', [])
-listfiles = s.add_noticeboard('listfiles', {})
+listfiles = s.add_noticeboard('listfiles', { 'files': dict(), 'medias': dict() })
 
-m = MediaManager("tmp", listfiles)
-m.start()
+manager = MediaManager("tmp", listfiles)
+manager.start()
+
+
+async def playfile(data):
+    print("PLAY", data)
+
+    chromecast = chromecasts_obj[uuid.UUID(data['chromecast_uuid'])]
+    filepath = manager.files[data['file_id']]['filepath']
+
+    print(chromecast, filepath)
+
+    mc = chromecast.media_controller
+    mc.play_media('http://192.168.1.50:8080/' + filepath, 'video/x-matroska')
+    mc.block_until_active()
+
+    print(mc.status)
+
+    return {}
+
+s.add_method('playfile', playfile)
 
 
 discover_chromecasts(ccdiscovery.publish_threadsafe)

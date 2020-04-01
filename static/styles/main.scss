@@ -101,6 +101,8 @@ h1, h2, h3, h4, h5, h6 {
 
 p {
   margin: initial;
+
+  font-size: initial;
 }
 
 ul {
@@ -125,24 +127,55 @@ button {
 }
 
 
-// == WINDOWS ======
-
-[id^="window-"]:not(.active) {
+/* [id^="window-"]:not(.active) {
   display: none;
+} */
+
+
+// overlay loading
+
+body.loading {
+  overflow: hidden;
+
+  #app {
+    filter: blur(2px);
+  }
 }
 
+.overlay {
+  width: 100vw;
+  height: 100vh;
 
-#window-loading {
+  position: fixed;
+  z-index: 10;
+  background-color: rgba(#fff, 0.6);
+
   text-align: center;
+
+  &-message, &-spinner {
+    margin-top: 45vh;
+  }
+
+  &-spinner {
+    @include spinner(#000);
+  }
+
+  a {
+    color: #0074d9;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  body:not(.loading) & {
+    display: none;
+  }
 }
 
-.lds-ellipsis {
-  margin-top: calc(50vh - 40px);
-  @include spinner(#000);
-}
 
 
-#window-devices {
+/* #window-devices {
   h2 {
     margin: 1em 0 1.5em 0;
 
@@ -193,10 +226,10 @@ button {
       border-bottom-right-radius: 3px;
     }
   }
-}
+} */
 
 
-#window-app {
+#app {
   --back-color: #eee;
   --front-color: #000;
 
@@ -320,6 +353,15 @@ button {
         transition: color 300ms;
       }
 
+      &-info-blank {
+        padding: 0.63rem 0;
+
+        color: #888;
+        font-size: 1rem;
+        font-style: italic;
+        line-height: 1;
+      }
+
       &-select {
         display: none;
         width: 250px;
@@ -344,8 +386,13 @@ button {
             border-radius: 0 0 3px 3px;
           }
 
-          &:hover {
+          &:not(.device-item-blank):hover {
             background-color: var(--back-color-0);
+          }
+
+          &.device-item-blank {
+            cursor: default;
+            padding: 0.4rem 0.9rem;
           }
         }
 
@@ -608,9 +655,9 @@ button {
     position: relative;
     overflow: hidden;
 
-    &:not(.active) {
+    /* &:not(.active) {
       display: none;
-    }
+    } */
 
     & > *:not(.app-media-background) {
       z-index: 2;

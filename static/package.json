@@ -1,0 +1,17 @@
+{
+  "name": "static",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "build": "mkdir -p tmp && babel --plugins @babel/plugin-transform-react-jsx src -d tmp/scripts && sass styles/main.scss:tmp/styles.css",
+    "build-watch": "mkdir -p tmp; babel --plugins @babel/plugin-transform-react-jsx src -d tmp/scripts --watch & sass styles/main.scss:tmp/styles.css --watch"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/cli": "^7.8.4",
+    "@babel/core": "^7.9.0",
+    "@babel/plugin-transform-react-jsx": "^7.9.4"
+  }
+}

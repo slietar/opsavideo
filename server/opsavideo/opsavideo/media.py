@@ -1,3 +1,4 @@
+import hashlib
 import glob
 import json
 import lxml.html
@@ -16,8 +17,8 @@ class MediaManager:
         self.patterns = ["*.mkv", "*.mp4"]
         self.noticeboard = noticeboard;
 
-        self.files = dict() # episode, movie, etc.
-        self.medias = dict() # TV series, movie, etc.
+        self.files = dict() # id -> episode, movie, etc.
+        self.medias = dict() # IMDB id -> TV series, movie, etc.
 
     def start(self):
         self.run_discovery()
@@ -55,8 +56,11 @@ class MediaManager:
         if (media is not None) and ('season' in torrent):
             self.find_media_season(media, torrent['season'])
 
-        self.files[filepath] = {
+        file_id = self.get_file_id(filepath)
+
+        self.files[file_id] = {
             'episode': torrent.get('episode'),
+            'filepath': filepath,
             'media': media['imdb_id'] if (media is not None) else None,
             'quality': torrent.get('quality'),
             'resolution': torrent.get('resolution'),
@@ -69,7 +73,9 @@ class MediaManager:
         self.publish()
 
     def remove_file(self, filepath):
-        del self.files[filepath]
+        file_id = self.get_file_id(filepath)
+        del self.files[file_id]
+
         self.publish()
 
     def find_media(self, title):
@@ -152,6 +158,9 @@ class MediaManager:
 
         except urllib.error.HTTPError as e:
             return
+
+    def get_file_id(self, filepath):
+        return hashlib.sha256(bytes(filepath, 'utf-8')).hexdigest()
 
 
 class EventHandler(watchdog.events.PatternMatchingEventHandler):
