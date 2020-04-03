@@ -67,7 +67,7 @@ class WindowMovies extends Component {
         } else {
           objects.push({
             type: 'file',
-            id: util.hash16(filepath),
+            id: util.hash16(file.filepath),
 
             files: [{ ...file, id: fileId }]
           });
@@ -107,12 +107,12 @@ class WindowMovies extends Component {
 
   renderMediaObject(object) {
     let media = object.media;
-    let file = object.file
+    let file = object.files[0];
 
     let description = media && media.description;
     let imageUrl = media && media.image;
     let title = media && media.title || file.title;
-    let wallpaperUrl = media && media.wallpaper ? (media.wallpaper.substring(0, media.wallpaper.search('@._V1_')) + '@._V1_.jpg') : '';
+    let wallpaperUrl = media && media.wallpaper ? (media.wallpaper.substring(0, media.wallpaper.search('@._V1_')) + `@._V1_SX${Math.round(window.innerWidth / 4)}_AL_.jpg`) : '';
 
     return (
       <div class="app-media">
@@ -122,6 +122,30 @@ class WindowMovies extends Component {
           <h1>{title}</h1>
           { description && <p>{description}</p> }
           <button onclick={() => { this.playFile(object.files[0]); }}>Play</button>
+
+          <div class="episode-selector">
+            <select class="episode-seasonselector">
+              <option>Season 1</option>
+              <option>Season 2</option>
+            </select>
+            <ul class="episode-list">
+              <li>
+                <a href="#" class="episode-thumbnail"></a>
+                <div class="episode-title">The Old Man and the Seat</div>
+                <p class="episode-description"> Rick goes to his private bathroom to find that someone else has used it. Jerry creates an app with an unlikely alien and Morty pays the price.</p>
+              </li>
+              <li class="episode_unavailable">
+                <a href="#" class="episode-thumbnail"></a>
+                <div class="episode-title">The Old Man and the Seat</div>
+                <p class="episode-description"> Rick goes to his private bathroom to find that someone else has used it. Jerry creates an app with an unlikely alien and Morty pays the price.</p>
+              </li>
+              <li>
+                <a href="#" class="episode-thumbnail"></a>
+                <div class="episode-title">The Old Man and the Seat</div>
+                <p class="episode-description"> Rick goes to his private bathroom to find that someone else has used it. Jerry creates an app with an unlikely alien and Morty pays the price.</p>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     );
@@ -134,7 +158,7 @@ class WindowMovies extends Component {
           <ul class="media-list" ref="mediaObjectList">
             {this.mediaObjects.map((object) => {
               let media = object.media;
-              let file = object.file;
+              let file = object.files[0];
 
               let title = media && media.title || file.title;
               let imageUrl = media && media.image;

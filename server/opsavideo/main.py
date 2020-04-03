@@ -65,11 +65,16 @@ async def playfile(data):
 
     print(chromecast, filepath)
 
+    chromecast.wait()
     mc = chromecast.media_controller
-    mc.play_media('http://192.168.1.50:8080/' + filepath, 'video/x-matroska')
+    mc.play_media('http://192.168.1.50:8080/' + filepath, 'video/mp4')
     mc.block_until_active()
 
     print(mc.status)
+
+    mc.pause()
+    time.sleep(5)
+    mc.play()
 
     return {}
 
