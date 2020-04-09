@@ -1,16 +1,18 @@
-import hashlib
+import PTN
 import glob
+import hashlib
 import json
+import logging
 import lxml.html
 import os
-import PTN
 import urllib.parse
 import urllib.request
-import watchdog.observers
 import watchdog.events
+import watchdog.observers
 
 import asyncio
 
+LOG = logging.getLogger('opsavideo.media')
 class MediaManager:
     def __init__(self, path, noticeboard, loop):
         self.obsever = None

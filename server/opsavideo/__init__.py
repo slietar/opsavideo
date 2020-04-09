@@ -1,6 +1,7 @@
 import argparse
 import logging
 import asyncio
+import os
 import pychromecast
 import pychromecast.discovery
 import sys
@@ -50,23 +51,6 @@ def discover_chromecasts(noticeboard, loop):
 #        # print(chromecast.status)
 #        return [chromecast.status.display_name, chromecast.status.icon_url]
 
-async def playfile(data):
-    chromecast = chromecasts_obj[uuid.UUID(data['chromecast_uuid'])]
-    filepath = manager.files[data['file_id']]['filepath']
-
-    print(chromecast, filepath)
-
-    chromecast.wait()
-    mc = chromecast.media_controller
-    mc.play_media('http://192.168.1.50:8080/' + filepath, 'video/mp4')
-    mc.block_until_active()
-
-    mc.pause()
-    time.sleep(5)
-    mc.play()
-
-    return {}
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--hostname", type=str, default="0.0.0.0")
@@ -74,9 +58,31 @@ def main():
     parser.add_argument("--static", type=str, default=None)
     parser.add_argument("--no-static", action='store_const', const=None, dest="static")
     parser.add_argument("--media", type=str, default="tmp")
+    parser.add_argument("--media-url", type=str)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
+
+    async def playfile(data):
+        if args.media_url is None:
+            return {}
+
+        chromecast = chromecasts_obj[uuid.UUID(data['chromecast_uuid'])]
+        filepath = manager.files[data['file_id']]['filepath']
+
+        print(chromecast, filepath)
+
+        chromecast.wait()
+        mc = chromecast.media_controller
+        mc.play_media(args.media_url + os.path.relpath(filepath, args.media), 'video/mp4')
+        print(args.media_url + os.path.relpath(filepath, args.media))
+        mc.block_until_active()
+
+        mc.pause()
+        time.sleep(5)
+        mc.play()
+
+        return {}
 
     server = Server()
 
