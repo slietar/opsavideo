@@ -1,1 +1,6 @@
 tmp
+*.swp
+*.egg-info
+.sass-cache
+__pycache__
+result

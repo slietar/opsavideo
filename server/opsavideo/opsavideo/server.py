@@ -2,8 +2,6 @@ import asyncio
 import json
 import websockets
 
-event_loop = asyncio.get_event_loop()
-
 class Noticeboard:
     def __init__(self, value):
         self._value = value
@@ -18,7 +16,7 @@ class Noticeboard:
     async def __call__(self, value):
         self.publish(value)
 
-    def publish_threadsafe(self, value, *, loop=event_loop):
+    def publish_threadsafe(self, value, *, loop=asyncio.get_event_loop()):
         asyncio.run_coroutine_threadsafe(self.publish(value), loop)
 
     async def subscribe(self, sub_index, client, index):

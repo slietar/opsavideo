@@ -6,8 +6,8 @@ import time
 import uuid
 import websockets
 
-from opsavideo.media import MediaManager
-from opsavideo.server import Noticeboard, Server
+from .opsavideo.media import MediaManager
+from .opsavideo.server import Noticeboard, Server
 
 
 chromecasts_obj = dict()
@@ -18,8 +18,7 @@ def discover_chromecasts(cb):
         return [str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name]
 
     def publish_chromecast():
-        data = [export_chromecast(cc) for cc in chromecasts.values()]
-        cb(data)
+        cb([export_chromecast(cc) for cc in chromecasts.values()])
 
     def add_chromecast(name):
         cc = pychromecast._get_chromecast_from_host(
@@ -47,16 +46,6 @@ def discover_chromecasts(cb):
 #        # print(chromecast.status)
 #        return [chromecast.status.display_name, chromecast.status.icon_url]
 
-
-s = Server()
-
-ccdiscovery = s.add_noticeboard('ccdiscovery', [])
-listfiles = s.add_noticeboard('listfiles', { 'files': dict(), 'medias': dict() })
-
-manager = MediaManager("tmp", listfiles)
-manager.start()
-
-
 async def playfile(data):
     chromecast = chromecasts_obj[uuid.UUID(data['chromecast_uuid'])]
     filepath = manager.files[data['file_id']]['filepath']
@@ -74,17 +63,25 @@ async def playfile(data):
 
     return {}
 
-s.add_method('playfile', playfile)
 
+def main():
+    s = Server()
 
-discover_chromecasts(ccdiscovery.publish_threadsafe)
-start_server = websockets.serve(s, "localhost", 8765)
+    ccdiscovery = s.add_noticeboard('ccdiscovery', [])
+    listfiles = s.add_noticeboard('listfiles', { 'files': dict(), 'medias': dict() })
+    s.add_method('playfile', playfile)
 
-print("READY");
+    manager = MediaManager("tmp", listfiles)
+    manager.start()
 
-try:
-    asyncio.get_event_loop().run_until_complete(start_server)
-    asyncio.get_event_loop().run_forever()
-except KeyboardInterrupt:
-    sys.exit(0)
+    discover_chromecasts(ccdiscovery.publish_threadsafe)
+    start_server = websockets.serve(s, "localhost", 8765)
+
+    print("READY");
+
+    try:
+        asyncio.get_event_loop().run_until_complete(start_server)
+        asyncio.get_event_loop().run_forever()
+    except KeyboardInterrupt:
+        sys.exit(0)
 

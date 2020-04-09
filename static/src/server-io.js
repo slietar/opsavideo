@@ -29,7 +29,7 @@ export default class ServerIO {
     console.log('%c SERVER ' + '%c Attempting connection', 'background-color: #0074d9; color: #fff', '');
 
     let deferred = util.defer();
-    let socket = new WebSocket("ws://localhost:8765");
+    let socket = new WebSocket(`${location.protocol === 'https' ? 'wss' : 'ws'}://${location.host}/ws`);
 
     let errorListener = (event) => {
       deferred.reject(new Error('Failed connection'));
