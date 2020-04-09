@@ -1,17 +1,23 @@
 {
-  "name": "static",
+  "name": "opsavideo-static",
   "version": "1.0.0",
-  "description": "",
-  "main": "main.js",
+  "private": true,
   "scripts": {
-    "build": "mkdir -p tmp && babel --plugins @babel/plugin-transform-react-jsx src -d tmp/scripts && sass styles/main.scss:tmp/styles.css",
-    "build-watch": "mkdir -p tmp; babel --plugins @babel/plugin-transform-react-jsx src -d tmp/scripts --watch & sass styles/main.scss:tmp/styles.css --watch"
+    "build": "webpack",
+    "watch": "webpack --watch"
   },
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
-    "@babel/cli": "^7.8.4",
     "@babel/core": "^7.9.0",
-    "@babel/plugin-transform-react-jsx": "^7.9.4"
+    "@babel/plugin-transform-react-jsx": "^7.9.4",
+    "babel-loader": "^8.1.0",
+    "clean-webpack-plugin": "^3.0.0",
+    "css-loader": "^3.4.2",
+    "html-webpack-plugin": "^4.0.3",
+    "mini-css-extract-plugin": "^0.9.0",
+    "sass": "^1.26.3",
+    "sass-loader": "^8.0.2",
+    "style-loader": "^1.1.3",
+    "webpack": "^4.42.1",
+    "webpack-cli": "^3.3.11"
   }
 }

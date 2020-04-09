@@ -1,7 +1,6 @@
 'use strict';
 
-/** @jsx createElement */
-
+import '../styles/main.scss';
 
 import ServerIO from './server-io.js';
 import { Component, createElement } from './dom.js';

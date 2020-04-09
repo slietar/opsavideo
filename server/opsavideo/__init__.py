@@ -6,9 +6,8 @@ import time
 import uuid
 import websockets
 
-from .opsavideo.media import MediaManager
-from .opsavideo.server import Noticeboard, Server
-
+from .media import MediaManager
+from .server import Noticeboard, Server
 
 chromecasts_obj = dict()
 
