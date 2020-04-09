@@ -65,21 +65,6 @@ async def playfile(data):
 
     return {}
 
-def mainX():
-    s = Server()
-
-    ccdiscovery = s.add_noticeboard('ccdiscovery', [])
-    listfiles = s.add_noticeboard('listfiles', { 'files': dict(), 'medias': dict() })
-    s.add_method('playfile', playfile)
-
-    manager = MediaManager("tmp", listfiles)
-    manager.start()
-
-    discover_chromecasts(ccdiscovery.publish_threadsafe)
-    start_server = websockets.serve(s, "localhost", 8765)
-
-    print("READY");
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--hostname", type=str, default="0.0.0.0")
