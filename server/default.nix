@@ -4,7 +4,12 @@ python37Packages.buildPythonApplication {
   version = "0.0.1";
   src = ./.;
   propagatedBuildInputs = with python37Packages; [
-    PyChromecast websockets lxml watchdog (python37Packages.callPackage ./parse-torrent-name.nix {})
+    (python37Packages.callPackage ./parse-torrent-name.nix {})
+    PyChromecast
+    aiohttp
+    lxml
+    watchdog
+    websockets
   ];
   doCheck = false;
 }

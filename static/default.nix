@@ -1,8 +1,8 @@
-{ pkgs ? import <nixpkgs> {}, NODE_ENV ? "production" }:
+{ NODE_ENV ? "production", lib, stdenv, yarn2nix-moretea, yarn }:
 let
   pname = "opsa-video-static";
   version = "0.0.1";
-  inherit (pkgs.yarn2nix-moretea) mkYarnModules;
+  inherit (yarn2nix-moretea) mkYarnModules;
   deps = mkYarnModules {
     inherit pname version;
     name = "${pname}-modules";
@@ -10,12 +10,16 @@ let
     yarnLock = ./yarn.lock;
   };
 in
-pkgs.stdenv.mkDerivation {
+stdenv.mkDerivation rec {
   inherit pname version NODE_ENV;
-  src = pkgs.nix-gitignore.gitignoreSource []  ./.;
+  src = lib.cleanSourceWith {
+    src = ./.;
+    filter = path: type: baseNameOf path != "node_modules";
+  };
 
-  nativeBuildInputs = with pkgs; [ yarn ];
+  nativeBuildInputs = [ yarn ];
   configurePhase = ''
+    find $src
     export HOME=$PWD/yarn_home
     ln -s ${deps}/node_modules node_modules
   '';

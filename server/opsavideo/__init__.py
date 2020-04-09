@@ -1,3 +1,5 @@
+import argparse
+import logging
 import asyncio
 import pychromecast
 import pychromecast.discovery
@@ -7,7 +9,8 @@ import uuid
 import websockets
 
 from .media import MediaManager
-from .server import Noticeboard, Server
+from .rpc import Noticeboard, Server
+from . import http
 
 chromecasts_obj = dict()
 
@@ -62,8 +65,7 @@ async def playfile(data):
 
     return {}
 
-
-def main():
+def mainX():
     s = Server()
 
     ccdiscovery = s.add_noticeboard('ccdiscovery', [])
@@ -78,9 +80,32 @@ def main():
 
     print("READY");
 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hostname", type=str, default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8081)
+    parser.add_argument("--static", type=str, default=None)
+    parser.add_argument("--no-static", action='store_const', const=None, dest="static")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+
+    server = Server()
+
+    ccdiscovery = server.add_noticeboard('ccdiscovery', [])
+    listfiles = server.add_noticeboard('listfiles', { 'files': dict(), 'medias': dict() })
+    server.add_method('playfile', playfile)
+
+    manager = MediaManager("tmp", listfiles)
+    manager.start()
+
+    loop = asyncio.get_event_loop()
+    discover_chromecasts(lambda data: ccdiscovery.publish_threadsafe(data, loop=loop))
+
     try:
-        asyncio.get_event_loop().run_until_complete(start_server)
-        asyncio.get_event_loop().run_forever()
+        task = http.run(server, hostname=args.hostname, port=args.port, static=args.static)
+        loop.run_until_complete(task)
+        loop.run_forever()
     except KeyboardInterrupt:
         sys.exit(0)
 

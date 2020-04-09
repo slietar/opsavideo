@@ -4,3 +4,5 @@ tmp
 .sass-cache
 __pycache__
 result
+dist
+node_modules

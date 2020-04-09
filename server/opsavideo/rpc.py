@@ -1,7 +1,8 @@
 import asyncio
 import json
-import websockets
+import logging
 
+LOG = logging.getLogger('opsavideo.rpc')
 class Noticeboard:
     def __init__(self, value):
         self._value = value
@@ -9,19 +10,18 @@ class Noticeboard:
 
     async def publish(self, value):
         self._value = value
-        # print("Publish " + repr(value))
         for (client, index) in self._subscriptions.values():
             await client.send(json.dumps([4, index, value]))
 
     async def __call__(self, value):
         self.publish(value)
 
-    def publish_threadsafe(self, value, *, loop=asyncio.get_event_loop()):
+    def publish_threadsafe(self, value, *, loop):
         asyncio.run_coroutine_threadsafe(self.publish(value), loop)
 
     async def subscribe(self, sub_index, client, index):
         self._subscriptions[sub_index] = (client, index)
-        await client.send(json.dumps([4, index, self._value]))
+        await client(json.dumps([4, index, self._value]))
 
     def unsubscribe(self, sub_index):
         del self._subscriptions[sub_index]
@@ -40,11 +40,16 @@ class Server:
     def add_method(self, name, f):
         self._methods[name] = f
 
-    async def __call__(self, websocket, path):
+    async def __call__(self, remote, incoming, outgoing):
+        """
+        remote is the IP address of the remote, used for logging
+        incoming is an asynchrounous generator, yielding every incoming message
+        outgoing is an asynchrounous function, used to send messages
+        """
+
         subs = dict()
         try:
-            while True:
-                msg = await websocket.recv()
+            async for msg in incoming:
                 payload = json.loads(msg)
                 kind = payload[0]
                 index = payload[1]
@@ -55,27 +60,31 @@ class Server:
 
                     result = await self._methods[method](data)
                     response = [1, index, result]
-                    await websocket.send(json.dumps(response))
+
+                    LOG.info('%s "REQ %s(%s)"', remote, method, data)
+
+                    await outgoing(json.dumps(response))
 
                 elif kind == 2: # subscribe
                     method = payload[2]
-                    print("Subscribe {} index={}".format(method, index))
+                    data = payload[3]
 
                     sub_index = self._next_sub_index
                     self._next_sub_index += 1
-                    await self._noticeboards[method].subscribe(sub_index, websocket, index)
-                    subs[index] = (method, sub_index)
+
+                    LOG.info('%s "SUB %s(%s)" => %d', remote, method, data, sub_index)
+
+                    nb = self._noticeboards[method]
+                    await nb.subscribe(sub_index, outgoing, index)
+                    subs[index] = (nb, sub_index)
 
                 elif kind == 3: # unsubscribe
-                    print("Unsubscribe index={}".format(index))
-                    (method, sub_index) = subs[index]
+                    (nb, sub_index) = subs[index]
+                    LOG.info('%s "UNSUB %d"', remote, sub_index)
                     del subs[index]
-                    self._noticeboards[method].unsubscribe(sub_index)
-
-        except websockets.exceptions.ConnectionClosedOK:
-            pass
+                    nb.unsubscribe(sub_index)
 
         finally:
-            for (method, sub_index) in subs.values():
-                self._noticeboards[method].unsubscribe(sub_index)
+            for (nb, sub_index) in subs.values():
+                nb.unsubscribe(sub_index)
 
