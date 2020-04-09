@@ -50,7 +50,7 @@ class WindowMovies extends Component {
 
       for (let [fileId, file] of Object.entries(files)) {
         if (file.media) {
-          if (referencedMedias[file.media]) {
+          if (referencedMedias[file.media] !== void 0) {
             let object = objects[referencedMedias[file.media]];
             object.files.push({ ...file, id: fileId });
           } else {
@@ -75,15 +75,26 @@ class WindowMovies extends Component {
       }
 
       let isFirstMessage = this.mediaObjects === null;
-
       this.mediaObjects = objects;
 
       if (isFirstMessage && this.onFirstMessageCallback) {
         this.onFirstMessageCallback();
-      } else if (!this.currentMediaObjectId) {
-        this.refs.contents = this.renderMediaObjectList();
+      } else if (this.currentMediaObjectId) {
+        this.displayMediaObject();
+      } else {
+        this.displayMediaObjectList();
       }
+
+      /* else if (this.currentMediaObjectId && this.currentMediaObject) {
+        this.refs.contents = this.renderMediaObject(this.currentMediaObject);
+      } else {
+        this.route('/movies');
+      } */
     });
+  }
+
+  get currentMediaObject() {
+    return this.currentMediaObjectId && this.mediaObjects.find((object) => object.id === this.currentMediaObjectId);
   }
 
   playFile(file) {
@@ -99,9 +110,49 @@ class WindowMovies extends Component {
     });
   }
 
+  selectSeason(season) {
+    let ul = this.refs.self.querySelector('.episode-list');
+
+    // TODO: improve
+    ul.innerHTML = '';
+
+    for (let child of this.renderMediaObjectEpisodeList(this.currentMediaObject, season)) {
+      ul.appendChild(child.self);
+    }
+  }
+
+
+  displayMediaObject(objectId /* optional */) {
+    if (objectId) {
+      this.currentMediaObjectId = objectId;
+    }
+
+    let object = this.currentMediaObject;
+
+    if (!object) {
+      this.app.open('/movies');
+      return;
+    }
+
+    this.refs.contents = this.renderMediaObject(object);
+
+    if (object.media && object.media.seasons) {
+      this.selectSeason(parseInt(Object.keys(object.media.seasons)[0]));
+    }
+  }
+
+  displayMediaObjectList() {
+    this.currentMediaObjectId = null;
+
+    this.refs.contents = this.renderMediaObjectList();
+  }
+
+
   render() {
     return (
-      <div id="window-movies" ref="contents"></div>
+      <div id="window-movies">
+        <div ref="contents"></div>
+      </div>
     );
   }
 
@@ -114,38 +165,37 @@ class WindowMovies extends Component {
     let title = media && media.title || file.title;
     let wallpaperUrl = media && media.wallpaper ? (media.wallpaper.substring(0, media.wallpaper.search('@._V1_')) + `@._V1_SX${Math.round(window.innerWidth / 4)}_AL_.jpg`) : '';
 
+
+    let contents;
+
+    if (media && media.seasons) {
+      let maxSeasonNumber = Math.max(...Object.keys(media.seasons));
+
+      contents = (
+        <div class="episode-selector">
+          <select class="episode-seasonselector" onchange={(event) => { this.selectSeason(parseInt(event.target.value)); }}>
+            {new Array(maxSeasonNumber).fill(0).map((_, index) => media.seasons[index + 1]
+              ? <option value={index + 1}>Season {index + 1}</option>
+              : <option value={index + 1} disabled>Season {index + 1}</option>
+            )}
+          </select>
+          <ul class="episode-list"></ul>
+        </div>
+      );
+    } else {
+      contents = (
+        <button onclick={() => { this.playFile(object.files[0]); }}>Play</button>
+      );
+    }
+
     return (
       <div class="app-media">
-        <div class="app-media-background" style={wallpaperUrl ? `background-image: url(${wallpaperUrl})` : ''}></div>,
-        <div class="app-media-image" style={imageUrl ? `background-image: url(${imageUrl});` : ''}></div>,
+        <div class="app-media-background" style={wallpaperUrl ? `background-image: url(${wallpaperUrl})` : ''}></div>
+        <div class="app-media-image" style={imageUrl ? `background-image: url(${imageUrl});` : ''}></div>
         <div class="app-media-contents">
           <h1>{title}</h1>
           { description && <p>{description}</p> }
-          <button onclick={() => { this.playFile(object.files[0]); }}>Play</button>
-
-          <div class="episode-selector">
-            <select class="episode-seasonselector">
-              <option>Season 1</option>
-              <option>Season 2</option>
-            </select>
-            <ul class="episode-list">
-              <li>
-                <a href="#" class="episode-thumbnail"></a>
-                <div class="episode-title">The Old Man and the Seat</div>
-                <p class="episode-description"> Rick goes to his private bathroom to find that someone else has used it. Jerry creates an app with an unlikely alien and Morty pays the price.</p>
-              </li>
-              <li class="episode_unavailable">
-                <a href="#" class="episode-thumbnail"></a>
-                <div class="episode-title">The Old Man and the Seat</div>
-                <p class="episode-description"> Rick goes to his private bathroom to find that someone else has used it. Jerry creates an app with an unlikely alien and Morty pays the price.</p>
-              </li>
-              <li>
-                <a href="#" class="episode-thumbnail"></a>
-                <div class="episode-title">The Old Man and the Seat</div>
-                <p class="episode-description"> Rick goes to his private bathroom to find that someone else has used it. Jerry creates an app with an unlikely alien and Morty pays the price.</p>
-              </li>
-            </ul>
-          </div>
+          {contents}
         </div>
       </div>
     );
@@ -167,7 +217,7 @@ class WindowMovies extends Component {
               return (
                 <li>
                   <button class="media-item" onclick={() => { this.app.open('/movies/' + object.id); }}>
-                    <div class="media-image" style={imageUrl ? `background-image: url(${imageUrl});` : ''}></div>
+                    <div class="media-image" style={imageUrl ? `background-image: url(${imageUrl[0]});` : ''}></div>
                     <div class="media-name">{title}</div>
                   </button>
                 </li>
@@ -177,6 +227,36 @@ class WindowMovies extends Component {
         </div>
       </div>
     );
+  }
+
+  renderMediaObjectEpisodeList(object, season) {
+    return object.media.seasons[season].map((episode, episodeIndex) => {
+      let files = object.files.filter((file) => file.season === season && file.episode === episodeIndex + 1);
+      let available = files.length > 0;
+      let episodeThumbnailStyle = episode.thumbnail ? `background-image: url(${util.setImdbImageWidth(episode.thumbnail, 300)});` : ''; /* To be replaced with attr() magic once supported. */
+
+      return (
+        <li class={available ? '' : 'episode_unavailable'}>
+          {available
+            ? <a href="#" class="episode-thumbnail" style={episodeThumbnailStyle} onclick={(event) => {
+              event.preventDefault();
+
+              if (files.length > 0) {
+                this.playFile(files[0]);
+              }
+            }}>
+
+              <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+              <path fill="red" d="M16 0c-8.837 0-16 7.163-16 16s7.163 16 16 16 16-7.163 16-16-7.163-16-16-16zM16 29c-7.18 0-13-5.82-13-13s5.82-13 13-13 13 5.82 13 13-5.82 13-13 13zM12 9l12 7-12 7z"></path>
+              </svg>
+            </a>
+            : <div class="episode-thumbnail" style={episodeThumbnailStyle}></div>
+          }
+          <div class="episode-title">{episodeIndex + 1}. {episode.title}</div>
+          <p class="episode-description">{episode.description}</p>
+        </li>
+      );
+    });
   }
 
   route(path) {
@@ -191,16 +271,9 @@ class WindowMovies extends Component {
     console.log('%c MOVIES ' + '%c Route ' + path, 'background-color: #85144b; color: #fff', '');
 
     if (path === '/') {
-      this.refs.contents = this.renderMediaObjectList();
+      this.displayMediaObjectList();
     } else {
-      let id = path.substring(1);
-      let object = this.mediaObjects.find((object) => object.id === id);
-
-      if (object) {
-        this.refs.contents = this.renderMediaObject(object);
-      } else {
-        this.app.redirect('/movies');
-      }
+      this.displayMediaObject(path.substring(1));
     }
   }
 
@@ -344,15 +417,19 @@ class Application extends Component {
   }
 
   render() {
+    let preventDefaultListener = (event) => {
+      event.preventDefault();
+    };
+
     return (
       <div id="app">
         <header>
           <div class="title">Opsa Video</div>
           <nav>
             <ul>
-              <li><a href="#">Device</a></li>
-              <li><a href="#" class="active">Movies</a></li>
-              <li><a href="#">Music</a></li>
+              <li><a href="#" onclick={preventDefaultListener}>Device</a></li>
+              <li><a href="#" class="active" onclick={preventDefaultListener}>Movies</a></li>
+              <li><a href="#" onclick={preventDefaultListener}>Music</a></li>
             </ul>
           </nav>
           <div class="device-data" ref="deviceData">

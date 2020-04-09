@@ -2,6 +2,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap');
 
 
+@mixin line-clamp($lines) {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $lines;
+}
+
 @mixin spinner($color) {
   display: inline-block;
   position: relative;
@@ -122,9 +129,16 @@ button {
   color: inherit;
   font-size: 0;
   text-align: left;
+}
+
+button, select {
+  appearance: none;
+  -moz-appearance: none;
+  -webkit-appearance: none;
 
   cursor: pointer;
-  -moz-appearance: none;
+
+  font-family: inherit;
 }
 
 
@@ -761,15 +775,6 @@ body.loading {
     .episode {
       $thumbnail-width: 250px;
 
-      &_unavailable .episode-thumbnail {
-        cursor: default;
-        filter: grayscale(0.9);
-      }
-
-      &-list li:not(.episode_unavailable) .episode-thumbnail:hover {
-        background: 50% 50%/35px no-repeat url(/tmp/play.svg), 0/cover url(https://m.media-amazon.com/images/M/MV5BNDkwODQ5NzAtMWYwMS00MTU1LWE1NzUtY2E0OWYwYTRmZmIzXkEyXkFqcGdeQXVyNjU1OTg4OTM@._V1_.jpg), rgba(#fff, 0.6);
-      }
-
       &-selector {
         margin-top: 20px;
         padding: 20px;
@@ -780,7 +785,6 @@ body.loading {
 
       &-seasonselector {
         width: 200px;
-        -moz-appearance: none;
 
         margin-bottom: 20px;
         padding: 0.5em 1.2em;
@@ -790,15 +794,17 @@ body.loading {
         border-radius: 5px;
 
         color: #fff;
-        font-size: 0.9rem;
-        font-weight: 600;
-
-        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 500;
 
         option {
           background-color: #fff;
 
           color: #000;
+
+          &[disabled] {
+            color: #777;
+          }
         }
       }
 
@@ -813,20 +819,45 @@ body.loading {
         width: $thumbnail-width;
 
         margin: 0 10px;
+
+        &.episode_unavailable .episode-thumbnail {
+          filter: grayscale(0.9);
+        }
+
+        &:not(.episode_unavailable) .episode-thumbnail:hover {
+          filter: brightness(1.1);
+
+          path {
+            fill: #fff;
+          }
+        }
       }
 
       &-thumbnail {
-        display: block;
+        display: flex;
         width: $thumbnail-width;
         height: $thumbnail-width / 1.78;
 
         margin-bottom: 10px;
-        background-color: rgba(#fff, 0.6);
 
-        background: 0/cover url(https://m.media-amazon.com/images/M/MV5BNDkwODQ5NzAtMWYwMS00MTU1LWE1NzUtY2E0OWYwYTRmZmIzXkEyXkFqcGdeQXVyNjU1OTg4OTM@._V1_.jpg), rgba(#fff, 0.6);
+        background-color: rgba(#fff, 0.6);
+        background-size: cover;
+
+        transition: filter 200ms;
+
+        svg {
+          margin: auto;
+        }
+
+        path {
+          fill: transparent; // rather than 'none' for the transition
+          transition: fill 200ms;
+        }
       }
 
       &-title {
+        @include line-clamp(1);
+
         padding: 0 5px;
 
         font-size: 1rem;
@@ -834,6 +865,8 @@ body.loading {
       }
 
       &-description {
+        @include line-clamp(5);
+
         padding: 0 5px;
 
         line-height: 1.3;

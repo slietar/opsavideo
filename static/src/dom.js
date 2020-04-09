@@ -54,7 +54,11 @@ export class Component {
 
 
 export function createElement(tag, attributes, ...children) {
-  let element = document.createElement(tag);
+  let isSvgElement = ['circle', 'g', 'path', 'rect', 'svg'].indexOf(tag) > 0;
+  let element = isSvgElement
+    ? document.createElementNS('http://www.w3.org/2000/svg', tag)
+    : document.createElement(tag);
+
   let refs = { self: element };
 
   if (attributes !== null) {

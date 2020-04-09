@@ -58,8 +58,6 @@ manager.start()
 
 
 async def playfile(data):
-    print("PLAY", data)
-
     chromecast = chromecasts_obj[uuid.UUID(data['chromecast_uuid'])]
     filepath = manager.files[data['file_id']]['filepath']
 
@@ -69,8 +67,6 @@ async def playfile(data):
     mc = chromecast.media_controller
     mc.play_media('http://192.168.1.50:8080/' + filepath, 'video/mp4')
     mc.block_until_active()
-
-    print(mc.status)
 
     mc.pause()
     time.sleep(5)

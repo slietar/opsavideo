@@ -145,12 +145,18 @@ class MediaManager:
             episodes = list()
 
             for episode_element in tree.find_class("list_item"):
-                episode_title = episode_element.xpath("//a[@itemprop='name']")[0].text_content()
+                episode_title = episode_element.xpath(".//a[@itemprop='name']")[0].text_content()
                 episode_description = episode_element.find_class("item_description")[0].text_content().strip()
+                episode_thumbnail = None
+                episode_thumbnail_element = episode_element.xpath(".//img")
+
+                if episode_thumbnail_element:
+                    episode_thumbnail = episode_thumbnail_element[0].get("src")
 
                 episodes.append({
                     'description': episode_description,
                     'imdb_id': None,
+                    'thumbnail': episode_thumbnail,
                     'title': episode_title,
                 })
 
