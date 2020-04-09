@@ -9,13 +9,15 @@ import urllib.request
 import watchdog.observers
 import watchdog.events
 
+import asyncio
 
 class MediaManager:
-    def __init__(self, path, noticeboard):
+    def __init__(self, path, noticeboard, loop):
         self.obsever = None
         self.path = path
         self.patterns = ["*.mkv", "*.mp4"]
-        self.noticeboard = noticeboard;
+        self.noticeboard = noticeboard
+        self.loop = loop
 
         self.files = dict() # id -> episode, movie, etc.
         self.medias = dict() # IMDB id -> TV series, movie, etc.
@@ -35,7 +37,7 @@ class MediaManager:
         self.noticeboard.publish_threadsafe({
             'files': self.files,
             'medias': self.medias
-        })
+        }, loop=self.loop)
 
     def run_discovery(self):
         filepaths = []

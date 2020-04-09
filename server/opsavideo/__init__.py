@@ -14,13 +14,15 @@ from . import http
 
 chromecasts_obj = dict()
 
-def discover_chromecasts(cb):
+def discover_chromecasts(noticeboard, loop):
     chromecasts = {}
     def export_chromecast(cc):
         return [str(cc.device.uuid), cc.device.friendly_name, cc.device.model_name]
 
     def publish_chromecast():
-        cb([export_chromecast(cc) for cc in chromecasts.values()])
+        noticeboard.publish_threadsafe(
+            [export_chromecast(cc) for cc in chromecasts.values()],
+            loop=loop)
 
     def add_chromecast(name):
         cc = pychromecast._get_chromecast_from_host(
@@ -71,6 +73,7 @@ def main():
     parser.add_argument("--port", type=int, default=8081)
     parser.add_argument("--static", type=str, default=None)
     parser.add_argument("--no-static", action='store_const', const=None, dest="static")
+    parser.add_argument("--media", type=str, default="tmp")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -81,11 +84,12 @@ def main():
     listfiles = server.add_noticeboard('listfiles', { 'files': dict(), 'medias': dict() })
     server.add_method('playfile', playfile)
 
-    manager = MediaManager("tmp", listfiles)
+    loop = asyncio.get_event_loop()
+
+    manager = MediaManager(args.media, listfiles, loop)
     manager.start()
 
-    loop = asyncio.get_event_loop()
-    discover_chromecasts(lambda data: ccdiscovery.publish_threadsafe(data, loop=loop))
+    discover_chromecasts(ccdiscovery, loop)
 
     try:
         task = http.run(server, hostname=args.hostname, port=args.port, static=args.static)
