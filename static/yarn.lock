@@ -223,6 +223,11 @@
     lodash "^4.17.13"
     to-fast-properties "^2.0.0"
 
+"@slietar/jsx-dom@^0.1.1":
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/@slietar/jsx-dom/-/jsx-dom-0.1.1.tgz#d6fb337c45b5248fd23f486a5360d23c2518b7ea"
+  integrity sha512-DF6iJYrKBzqmUcNyQ+/LtEDvpfKqFPO3GQgVSepL7TKemmweAdEkgCLnCEnPoreruFv4y7Ujn0Ck/e6V5LijIw==
+
 "@types/anymatch@*":
   version "1.3.1"
   resolved "https://registry.yarnpkg.com/@types/anymatch/-/anymatch-1.3.1.tgz#336badc1beecb9dacc38bea2cf32adf627a8421a"

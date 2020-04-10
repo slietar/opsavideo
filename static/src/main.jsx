@@ -3,19 +3,17 @@
 import '../styles/main.scss';
 
 import ServerIO from './server-io.js';
-import { Component, createElement } from './dom.js';
+import { Fragment, createElement, getReferences } from '@slietar/jsx-dom';
 import * as util from './util.js';
 
 
-class Overlay extends Component {
+class Overlay {
   setLoading() {
-    this.refs.self = [
-      <div class="overlay-spinner"><div></div><div></div><div></div><div></div></div>
-    ];
+    this.refs.root = <><div class="overlay-spinner"><div></div><div></div><div></div><div></div></div></>;
   }
 
   setMessage(message, retryCallback) {
-    this.refs.self = [
+    this.refs.root = <>
       <p class="overlay-message">{message} <a href="#" onclick={(event) => {
         event.preventDefault();
 
@@ -23,21 +21,22 @@ class Overlay extends Component {
           retryCallback();
         }
       }}>Retry</a></p>
-    ];
+    </>;
   }
 
   render() {
-    return (
-      <div class="overlay"></div>
+    let tree = (
+      <div class="overlay" ref="root"></div>
     );
+
+    this.refs = getReferences(tree);
+    return tree.local.self;
   }
 }
 
 
-class WindowMovies extends Component {
+class WindowMovies {
   constructor(app) {
-    super();
-
     this.app = app;
     this.mediaObjects = null;
     this.currentMediaObjectId = null;
@@ -110,14 +109,7 @@ class WindowMovies extends Component {
   }
 
   selectSeason(season) {
-    let ul = this.refs.self.querySelector('.episode-list');
-
-    // TODO: improve
-    ul.innerHTML = '';
-
-    for (let child of this.renderMediaObjectEpisodeList(this.currentMediaObject, season)) {
-      ul.appendChild(child.self);
-    }
+    this.refs.contents.episodeList = this.renderMediaObjectEpisodeList(this.currentMediaObject, season);
   }
 
 
@@ -148,11 +140,14 @@ class WindowMovies extends Component {
 
 
   render() {
-    return (
+    let tree = (
       <div id="window-movies">
         <div ref="contents"></div>
       </div>
     );
+
+    this.refs = getReferences(tree);
+    return tree.local.self;
   }
 
   renderMediaObject(object) {
@@ -178,7 +173,7 @@ class WindowMovies extends Component {
               : <option value={index + 1} disabled>Season {index + 1}</option>
             )}
           </select>
-          <ul class="episode-list"></ul>
+          <ul class="episode-list" ref=".episodeList"></ul>
         </div>
       );
     } else {
@@ -282,10 +277,8 @@ class WindowMovies extends Component {
 }
 
 
-class Application extends Component {
+class Application {
   constructor() {
-    super();
-
     this.chromecasts = {};
     this.currentChromecast = null;
     this.currentWindow = null;
@@ -297,7 +290,7 @@ class Application extends Component {
     ];
 
     this.overlay = new Overlay();
-    document.body.appendChild(this.overlay.renderComponent());
+    document.body.appendChild(this.overlay.render());
   }
 
   connect() {
@@ -336,7 +329,7 @@ class Application extends Component {
 
     await this.connect();
 
-    document.body.appendChild(this.renderComponent());
+    document.body.appendChild(this.render());
 
     this.server.subscribe('ccdiscovery', {}, (chromecasts) => {
       // chromecasts = [['0', 'foo', 'bar'], ['1', 'baz', 'qux']];
@@ -352,8 +345,8 @@ class Application extends Component {
 
 
     // TODO: move to HTML
-    this.refs.deviceData.addEventListener('blur', (event) => {
-      this.refs.deviceData.classList.remove('dropdown-active');
+    this.refs.deviceData.self.addEventListener('blur', (event) => {
+      this.refs.deviceData.self.classList.remove('dropdown-active');
     }, true /* inherit listener */);
 
 
@@ -411,7 +404,7 @@ class Application extends Component {
       </div>
     );
 
-    this.refs.deviceData.classList.remove('dropdown-active');
+    this.refs.deviceData.self.classList.remove('dropdown-active');
     this.renderDeviceList();
   }
 
@@ -420,7 +413,7 @@ class Application extends Component {
       event.preventDefault();
     };
 
-    return (
+    let tree = (
       <div id="app">
         <header>
           <div class="title">Opsa Video</div>
@@ -432,7 +425,7 @@ class Application extends Component {
             </ul>
           </nav>
           <div class="device-data" ref="deviceData">
-            <a href="#" class="device-current" onclick={(event) => { event.preventDefault(); this.refs.deviceData.classList.toggle('dropdown-active'); }}>
+            <a href="#" class="device-current" onclick={(event) => { event.preventDefault(); this.refs.deviceData.self.classList.toggle('dropdown-active'); }}>
               <div class="device-info-blank" ref="deviceCurrentInfo">Select a device</div>
               <div class="device-dropdown-arrow"></div>
             </a>
@@ -444,6 +437,9 @@ class Application extends Component {
         <div id="app-contents" ref="appContents"></div>
       </div>
     );
+
+    this.refs = getReferences(tree);
+    return tree.local.self;
   }
 
   renderDeviceList() {
@@ -481,9 +477,7 @@ class Application extends Component {
     let instance = new Class(this);
 
     this.currentWindow = { index, instance };
-    this.refs.appContents = [
-      instance.renderComponent()
-    ];
+    this.refs.appContents = <>{instance.render()}</>;
 
     return instance;
   }

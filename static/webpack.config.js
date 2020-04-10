@@ -17,7 +17,7 @@ module.exports = {
           options: {
             'plugins': [
               '@babel/plugin-syntax-jsx',
-              ['@babel/plugin-transform-react-jsx', { 'pragma': 'createElement' }]
+              ['@babel/plugin-transform-react-jsx', { 'pragma': 'createElement', 'pragmaFrag': 'Fragment' }]
             ]
           }
         }
