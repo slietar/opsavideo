@@ -6,6 +6,8 @@ import ServerIO from './server-io.js';
 import { Fragment, createElement, getReferences } from '@slietar/jsx-dom';
 import * as util from './util.js';
 
+import playIcon from '../assets/play.svg';
+
 
 class Overlay {
   setLoading() {
@@ -240,9 +242,7 @@ class WindowMovies {
               }
             }}>
 
-              <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-              <path fill="red" d="M16 0c-8.837 0-16 7.163-16 16s7.163 16 16 16 16-7.163 16-16-7.163-16-16-16zM16 29c-7.18 0-13-5.82-13-13s5.82-13 13-13 13 5.82 13 13-5.82 13-13 13zM12 9l12 7-12 7z"></path>
-              </svg>
+              {playIcon.cloneNode(true)}
             </a>
             : <div class="episode-thumbnail" style={episodeThumbnailStyle}></div>
           }

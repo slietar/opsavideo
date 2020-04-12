@@ -36,6 +36,21 @@ module.exports = {
             },
           },
         ],
+      },
+      {
+        test: /\.svg$/,
+        include: [ path.resolve(__dirname, "assets") ],
+        use: [
+          {
+            loader: 'babel-loader',
+            options: {
+              plugins: [
+                ['@babel/plugin-transform-react-jsx', { importSource: '@slietar/jsx-dom-svg', runtime: 'automatic' }]
+              ]
+            }
+          },
+          '@slietar/jsx-loader'
+        ]
       }
     ]
   },

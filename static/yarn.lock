@@ -223,10 +223,20 @@
     lodash "^4.17.13"
     to-fast-properties "^2.0.0"
 
+"@slietar/jsx-dom-svg@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@slietar/jsx-dom-svg/-/jsx-dom-svg-0.1.0.tgz#71043d01cd18c9e7d3e28366244264dec6c12979"
+  integrity sha512-aopuWBeBnn9hn7arQ44Lg1BewOcSxxAosjW1xtW7QtL5HenX20G5pgi1jG8wGGT6jED8LweD2CZ9tmcPNqI48A==
+
 "@slietar/jsx-dom@^0.1.1":
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/@slietar/jsx-dom/-/jsx-dom-0.1.1.tgz#d6fb337c45b5248fd23f486a5360d23c2518b7ea"
   integrity sha512-DF6iJYrKBzqmUcNyQ+/LtEDvpfKqFPO3GQgVSepL7TKemmweAdEkgCLnCEnPoreruFv4y7Ujn0Ck/e6V5LijIw==
+
+"@slietar/jsx-loader@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@slietar/jsx-loader/-/jsx-loader-0.1.0.tgz#bfb591a0323ef3db486451d6df461d2eb9ad124b"
+  integrity sha512-s9DFdyAqhXqWlB+S/7s+sScCDZxV3U7Aza+a1aSe3fzljTXEjOMdxro0wMRlyvgdpN3OHUCslUuym03x7cLl8g==
 
 "@types/anymatch@*":
   version "1.3.1"
