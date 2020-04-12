@@ -60,12 +60,6 @@ export class WindowLibrary {
       } else {
         this.displayMediaObjectList();
       }
-
-      /* else if (this.currentMediaObjectId && this.currentMediaObject) {
-        this.refs.contents = this.renderMediaObject(this.currentMediaObject);
-      } else {
-        this.route('/movies');
-      } */
     });
   }
 
@@ -87,11 +81,13 @@ export class WindowLibrary {
   }
 
   selectSeason(season) {
+    this.app.setState({ seasonNumber: season });
     this.refs.contents.episodeList = this.renderMediaObjectEpisodeList(this.currentMediaObject, season);
+    this.refs.contents.seasonSelector.self.value = season.toString();
   }
 
 
-  displayMediaObject(objectId /* optional */) {
+  displayMediaObject(objectId /* optional */, { seasonNumber } = {}) {
     if (objectId) {
       this.currentMediaObjectId = objectId;
     }
@@ -99,14 +95,18 @@ export class WindowLibrary {
     let object = this.currentMediaObject;
 
     if (!object) {
-      this.app.open('/movies');
+      this.context.open('/');
       return;
     }
 
     this.refs.contents = this.renderMediaObject(object);
 
     if (object.media && object.media.seasons) {
-      this.selectSeason(parseInt(Object.keys(object.media.seasons)[0]));
+      this.selectSeason(
+        seasonNumber !== void 0
+          ? seasonNumber
+          : parseInt(Object.keys(object.media.seasons)[0])
+      );
     }
   }
 
@@ -141,14 +141,11 @@ export class WindowLibrary {
     let contents;
 
     if (media && media.seasons) {
-      let maxSeasonNumber = Math.max(...Object.keys(media.seasons));
-
       contents = (
         <div class="episode-selector">
-          <select class="episode-seasonselector" onchange={(event) => { this.selectSeason(parseInt(event.target.value)); }}>
-            {new Array(maxSeasonNumber).fill(0).map((_, index) => media.seasons[index + 1]
-              ? <option value={index + 1}>Season {index + 1}</option>
-              : <option value={index + 1} disabled>Season {index + 1}</option>
+          <select class="episode-seasonselector" ref=".seasonSelector" onchange={(event) => { this.selectSeason(parseInt(event.target.value)); }}>
+            {Object.keys(media.seasons).map((strIndex) =>
+              <option value={parseInt(strIndex)}>Season {strIndex}</option>
             )}
           </select>
           <ul class="episode-list" ref=".episodeList"></ul>
@@ -188,7 +185,9 @@ export class WindowLibrary {
 
               return (
                 <li>
-                  <button class="media-item" onclick={() => { this.app.open('/movies/' + object.id); }}>
+                  <button class="media-item" onclick={() => {
+                    this.context.open('/' + object.id);
+                  }}>
                     <div class="media-image" style={imageUrl ? `background-image: url(${imageUrl[0]});` : ''}></div>
                     <div class="media-name">{title}</div>
                   </button>
@@ -229,10 +228,10 @@ export class WindowLibrary {
     });
   }
 
-  route(path) {
+  route(path, state) {
     if (this.mediaObjects === null) {
       this.onFirstMessageCallback = () => {
-        this.route(path);
+        this.route(path, state);
       };
 
       return;
@@ -243,7 +242,7 @@ export class WindowLibrary {
     if (path === '/') {
       this.displayMediaObjectList();
     } else {
-      this.displayMediaObject(path.substring(1));
+      this.displayMediaObject(path.substring(1), { seasonNumber: state.seasonNumber });
     }
   }
 

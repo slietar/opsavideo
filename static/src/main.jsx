@@ -22,13 +22,10 @@ class Overlay {
 
   setMessage(message, retryCallback) {
     this.refs.root = <>
-      <p class="overlay-message">{message} <a href="#" onclick={(event) => {
+      <p class="overlay-message">{message}{retryCallback ? <a href="#" onclick={(event) => {
         event.preventDefault();
-
-        if (retryCallback) {
-          retryCallback();
-        }
-      }}>Retry</a></p>
+        retryCallback();
+      }}>Retry</a> : []}</p>
     </>;
   }
 
@@ -52,7 +49,7 @@ class Application {
     this.server = new ServerIO();
 
     this.windows = [
-      { Class: WindowLibrary, mount: '/movies', name: 'Library' }
+      { Class: WindowLibrary, mount: '/library', name: 'Library' }
     ].map(({ Class, mount, name }) => ({ Class, mount, name, context: null, instance: null }));
 
     this.overlay = new Overlay();
@@ -123,36 +120,30 @@ class Application {
     this.route();
   }
 
-  open(path) {
-    history.pushState({}, '', '#' + path);
+  open(path, state = {}) {
+    history.pushState(state, '', '#' + path);
     return this.route(path);
   }
 
-  redirect(path) {
-    history.replaceState({}, '', '#' + path);
+  redirect(path, state = {}) {
+    history.replaceState(state, '', '#' + path);
     return this.route(path);
   }
 
-  route(path = location.hash.slice(1)) {
+  setState(state) {
+    history.replaceState(state, location.hash);
+  }
+
+  route(path = location.hash.slice(1), state = history.state || {}) {
     if (path.length < 1) {
       return this.redirect('/');
     }
-
-    if (this.currentWindow) {
-      let originMount = this.windows[this.currentWindow.index].mount;
-
-      if (path.startsWith(originMount)) {
-        this.currentWindow.instance.route(path.slice(originMount.length) || '/');
-        return;
-      }
-    }
-
 
     for (let index = 0; index < this.windows.length; index++) {
       let { mount } = this.windows[index];
 
       if (path.startsWith(mount)) {
-        this.updateWindow(index).route(path.slice(mount.length) || '/');
+        this.updateWindow(index).route(path.slice(mount.length) || '/', state);
         return;
       }
     }
@@ -186,7 +177,7 @@ class Application {
           <nav>
             <ul>
               <li><a href="#" onclick={preventDefaultListener}>Device</a></li>
-              <li><a href="#/movies" class="active">Library</a></li>
+              <li><a href="#/library" class="active">Library</a></li>
             </ul>
           </nav>
           <div class="device-data" ref="deviceData">
@@ -235,10 +226,17 @@ class Application {
   updateWindow(index) {
     let win = this.windows[index];
 
+    if (this.currentWindowIndex === index) {
+      return win.instance;
+    }
+
     if (!win.instance) {
       win.context = {
         log(message) {
           console.log(`%c ${win.name.toUpperCase()} ` + `%c ${message}`, `background-color: hsl(${index * 10}, 100%, 50%); color: #fff`, '');
+        },
+        open: (path) => {
+          this.open(win.mount + path);
         }
       };
 
