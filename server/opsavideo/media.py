@@ -61,6 +61,7 @@ class MediaManager:
             self.find_media_season(media, torrent['season'])
 
         file_id = self.get_file_id(filepath)
+        LOG.info("Add '%s' (%s)", filepath, file_id)
 
         self.files[file_id] = {
             'episode': torrent.get('episode'),
@@ -78,6 +79,8 @@ class MediaManager:
 
     def remove_file(self, filepath):
         file_id = self.get_file_id(filepath)
+        LOG.info("Remove '%s' (%s)", filepath, file_id)
+
         del self.files[file_id]
 
         self.publish()
