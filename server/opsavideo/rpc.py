@@ -11,7 +11,7 @@ class Noticeboard:
     async def publish(self, value):
         self._value = value
         for (client, index) in self._subscriptions.values():
-            await client.send(json.dumps([4, index, value]))
+            await client(json.dumps([4, index, value]))
 
     async def __call__(self, value):
         self.publish(value)
