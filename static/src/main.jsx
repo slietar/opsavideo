@@ -10,8 +10,10 @@ import { Fragment, createElement, getReferences } from '@slietar/jsx-dom';
 
 import ServerIO from './server-io.js';
 import { WindowLibrary } from './library.jsx';
+import { WindowPlayer } from './player.jsx';
 import * as util from './util.js';
 
+import iconsElement from '../assets/icons.svg';
 import '../styles/main.scss';
 
 
@@ -22,10 +24,10 @@ class Overlay {
 
   setMessage(message, retryCallback) {
     this.refs.root = <>
-      <p class="overlay-message">{message}{retryCallback ? <a href="#" onclick={(event) => {
+      <p class="overlay-message">{message}{retryCallback ? [' ', <a href="#" onclick={(event) => {
         event.preventDefault();
         retryCallback();
-      }}>Retry</a> : []}</p>
+      }}>Retry</a>] : []}</p>
     </>;
   }
 
@@ -49,11 +51,14 @@ class Application {
     this.server = new ServerIO();
 
     this.windows = [
-      { Class: WindowLibrary, mount: '/library', name: 'Library' }
+      { Class: WindowLibrary, mount: '/library', name: 'Library' },
+      { Class: WindowPlayer, mount: '/player', name: 'Player' },
     ].map(({ Class, mount, name }) => ({ Class, mount, name, context: null, instance: null }));
 
     this.overlay = new Overlay();
+
     document.body.appendChild(this.overlay.render());
+    document.body.appendChild(iconsElement);
   }
 
   connect() {
@@ -233,7 +238,9 @@ class Application {
     if (!win.instance) {
       win.context = {
         log(message) {
-          console.log(`%c ${win.name.toUpperCase()} ` + `%c ${message}`, `background-color: hsl(${index * 10}, 100%, 50%); color: #fff`, '');
+          const Colors = ['#85144b', '#39cccc', '#2ecc40', '#ff851b'];
+
+          console.log(`%c ${win.name.toUpperCase()} ` + `%c ${message}`, `background-color: ${Colors[index] || '#000'}; color: #fff`, '');
         },
         open: (path) => {
           this.open(win.mount + path);
