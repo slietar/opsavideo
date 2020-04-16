@@ -1,4 +1,5 @@
 import PTN
+import fnmatch
 import glob
 import hashlib
 import json
@@ -16,39 +17,26 @@ LOG = logging.getLogger('opsavideo.media')
 class MediaManager:
     def __init__(self, path, noticeboard, loop):
         self.obsever = None
-        self.path = path
-        self.patterns = ["*.mkv", "*.mp4"]
         self.noticeboard = noticeboard
         self.loop = loop
 
         self.files = dict() # id -> episode, movie, etc.
         self.medias = dict() # IMDB id -> TV series, movie, etc.
 
-    def start(self):
-        self.run_discovery()
+        self.watcher = Watcher(self, origin=path, patterns=["*.avi", "*.mkv", "*.mp4"])
 
-        event_handler = EventHandler(self, self.patterns)
-        self.observer = watchdog.observers.Observer()
-        self.observer.schedule(event_handler, self.path, recursive=True)
-        self.observer.start()
+    def start(self):
+        self.watcher.discover()
+        self.watcher.start()
 
     def stop(self):
-        self.observer.stop()
+        self.watcher.stop()
 
     def publish(self):
         self.noticeboard.publish_threadsafe({
             'files': self.files,
             'medias': self.medias
         }, loop=self.loop)
-
-    def run_discovery(self):
-        filepaths = []
-
-        for pattern in self.patterns:
-            filepaths += glob.glob(self.path + "/**/" + pattern, recursive=True)
-
-        for filepath in filepaths:
-            self.add_file(filepath)
 
     def add_file(self, filepath):
         name = os.path.splitext(os.path.basename(filepath))[0]
@@ -87,8 +75,7 @@ class MediaManager:
 
     def find_media(self, title):
         try:
-            res = urllib.request.urlopen(f"http://sg.media-imdb.com/suggests/{urllib.parse.quote(title[0].lower())}/{urllib.parse.quote(title)}.json")
-            raw_data = res.read().decode("utf-8")
+            raw_data = request(f"http://sg.media-imdb.com/suggests/{urllib.parse.quote(title[0].lower())}/{urllib.parse.quote(title)}.json")
             data = json.loads(raw_data[raw_data.index('(') + 1:-1])
 
             if not 'd' in data:
@@ -176,20 +163,75 @@ class MediaManager:
         return hashlib.sha256(bytes(filepath, 'utf-8')).hexdigest()
 
 
-class EventHandler(watchdog.events.PatternMatchingEventHandler):
-    def __init__(self, manager, patterns):
-        super().__init__(patterns=patterns, ignore_directories=True)
+
+class Watcher:
+    def __init__(self, manager, origin, patterns):
         self.manager = manager
+        self.origin = origin
+        self.patterns = patterns
+
+        self.filepaths = set()
+
+    def matches_patterns(self, filepath):
+        for pattern in self.patterns:
+            if fnmatch.fnmatch(filepath, pattern):
+                return True
+
+        return False
+
+    def discover(self):
+        for pattern in self.patterns:
+            for filepath in glob.glob(os.path.join(self.origin, "**", pattern), recursive=True):
+                self.add_file(filepath)
+
+    def start(self):
+        event_handler = EventHandler(self)
+        self.observer = watchdog.observers.Observer()
+        self.observer.schedule(event_handler, self.origin, recursive=True)
+        self.observer.start()
+
+    def stop(self):
+        self.observer.stop()
+
+    def add_file(self, filepath):
+        if self.matches_patterns(filepath):
+            if not filepath in self.filepaths:
+                self.filepaths.add(filepath)
+                self.manager.add_file(filepath)
+            else:
+                LOG.warn("Adding existing file at '%s'", filepath)
+
+    def remove_file(self, filepath):
+        if filepath in self.filepaths:
+            self.filepaths.remove(filepath)
+            self.manager.remove_file(filepath)
+        elif self.matches_patterns(filepath):
+            LOG.warn("Removing missing file at '%s'", filepath)
+
+    def remove_directory_children(self, dirpath):
+        for filepath in {filepath for filepath in self.filepaths if not os.path.relpath(filepath, dirpath).startswith("..")}:
+            self.remove_file(filepath)
+
+
+class EventHandler(watchdog.events.FileSystemEventHandler):
+    def __init__(self, watcher):
+        super().__init__()
+        self.watcher = watcher
 
     def on_created(self, event):
-        self.manager.add_file(event.src_path)
+        if not event.is_directory:
+            self.watcher.add_file(event.src_path)
 
     def on_deleted(self, event):
-        self.manager.remove_file(event.src_path)
+        if event.is_directory:
+            self.watcher.remove_directory_children(event.src_path)
+        else:
+            self.watcher.remove_file(event.src_path)
 
     def on_moved(self, event):
-        self.manager.remove_file(event.src_path)
-        self.manager.add_file(event.dest_path)
+        if not event.is_directory:
+            self.watcher.remove_file(event.src_path)
+            self.watcher.add_file(event.dest_path)
 
 
 def request(url):
