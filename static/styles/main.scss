@@ -1,12 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@380&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap');
 
 @import "./mixins.scss";
 @import "./normalize.scss";
 
 @import "./library.scss";
 @import "./player.scss";
+
+
+body {
+  font-family: "Helvetica Now Display", "Helvetica Neue", sans-serif;
+}
 
 
 // overlay loading
@@ -90,11 +93,29 @@ body.loading {
       display: inline-block;
       margin: 0.8rem 0;
 
-      font-family: "Public Sans", sans-serif;
-      font-size: 1.5rem;
-      font-variation-settings: "wght" 650;
-      font-weight: 500;
-      line-height: 1;
+      &-main, &-sub {
+        font-family: Inter, sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1;
+        text-transform: lowercase;
+      }
+
+      &-main {
+        margin: 0 -0.5rem;
+        padding: 0 0.5rem 0.15rem 0.5rem;
+
+        background-color: #dfdfdf;
+        border-radius: 5px;
+
+        letter-spacing: -0.8px;
+      }
+
+      &-sub {
+        margin-left: 1.2rem;
+
+        color: var(--front-color-5);
+      }
     }
 
     .device {
@@ -163,7 +184,7 @@ body.loading {
 
       &-name {
         font-size: 1.1rem;
-        font-weight: 500;
+        font-weight: 600;
 
         transition: color 300ms;
       }
@@ -243,7 +264,7 @@ body.loading {
 
       color: var(--front-color-5);
       font-size: 0.8rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0.3px;
       text-transform: uppercase;
 

@@ -15,6 +15,7 @@ import * as util from './util.js';
 
 import iconsElement from '../assets/icons.svg';
 import '../styles/main.scss';
+import 'typeface-helvetica-now';
 
 
 class Overlay {
@@ -178,7 +179,10 @@ class Application {
     let tree = (
       <div id="app">
         <header>
-          <div class="title">Opsa Video</div>
+          <div class="title">
+            <span class="title-main">Opsa</span>
+            <span class="title-sub">Video</span>
+          </div>
           <nav>
             <ul>
               <li><a href="#" onclick={preventDefaultListener}>Device</a></li>

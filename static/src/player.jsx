@@ -69,7 +69,7 @@ export class WindowPlayer {
 
     /* TODO: improve */
     window.addEventListener('keydown', (event) => {
-      if (!this.video) {
+      if (!this.video || event.ctrlKey || event.metaKey || event.shiftKey) {
         return;
       }
 
