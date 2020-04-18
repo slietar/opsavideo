@@ -82,6 +82,10 @@ export class WindowPlayer {
 
       event.preventDefault();
     });
+
+    document.addEventListener('fullscreenchange', () => {
+      this.player.classList.toggle('_fullscreen', document.fullscreenElement !== null);
+    });
   }
 
   togglePause() {
@@ -106,32 +110,59 @@ export class WindowPlayer {
 
           <div class="player-controlscontainer">
             <div class="player-controls">
-      {[]/*<div class="player-ctrlvol">
-                <button type="button" class="player-ctrlmute">
-                  <svg><use href="#icon-volume-mute"></use></svg>
-                  <svg><use href="#icon-volume-low"></use></svg>
-                  <svg><use href="#icon-volume-medium"></use></svg>
-                  <svg><use href="#icon-volume-high"></use></svg>
-                </button>
-                <input type="range" />
-              </div> */}
 
-              <button type="button" onclick={() => {
-                this.video.playbackRate = Math.max(0.25, Math.min(this.video.playbackRate / 2, 1));
-              }}>
-                <svg><use href="#icon-fastrewind"></use></svg>
-              </button>
+              <div class="player-ctrlsettings">
+                <div class="player-ctrlvol">
+                  <button type="button" class="player-ctrlmute">
+                    <svg><use href="#icon-volume-high"></use></svg>
+                    <svg><use href="#icon-volume-mute"></use></svg>
+                    <svg><use href="#icon-volume-low"></use></svg>
+                    <svg><use href="#icon-volume-medium"></use></svg>
+                  </button>
+                  <input type="range" />
+                </div>
 
-              <button type="button" class="player-ctrlpause" onclick={() => { this.togglePause(); }}>
-                <svg><use href="#icon-play"></use></svg>
-                <svg><use href="#icon-pause"></use></svg>
-              </button>
+                <div class="player-ctrlplay">
+                  <button type="button" onclick={() => {
+                    this.video.playbackRate = Math.max(0.25, Math.min(this.video.playbackRate / 2, 1));
+                  }}>
+                    <svg><use href="#icon-fastrewind"></use></svg>
+                  </button>
 
-              <button type="button" onclick={() => {
-                this.video.playbackRate = Math.min(4, Math.max(this.video.playbackRate * 2, 1));
-              }}>
-                <svg><use href="#icon-fastforward"></use></svg>
-              </button>
+                  <button type="button" class="player-ctrlpause" onclick={() => { this.togglePause(); }}>
+                    <svg><use href="#icon-play"></use></svg>
+                    <svg><use href="#icon-pause"></use></svg>
+                  </button>
+
+                  <button type="button" onclick={() => {
+                    this.video.playbackRate = Math.min(4, Math.max(this.video.playbackRate * 2, 1));
+                  }}>
+                    <svg><use href="#icon-fastforward"></use></svg>
+                  </button>
+                </div>
+
+                <div class="player-ctrloptions">
+                  <button type="button">
+                    <svg><use href="#icon-picture-in-picture"></use></svg>
+                  </button>
+                  <button type="button" class="player-ctrlfullscreen" onclick={() => {
+                    if (document.fullscreenElement) {
+                      document.exitFullscreen();
+                    } else {
+                      this.player.requestFullscreen();
+                    }
+                  }}>
+                    <svg><use href="#icon-fullscreen"></use></svg>
+                    <svg><use href="#icon-fullscreen-exit"></use></svg>
+                  </button>
+                  <button type="button">
+                    <svg><use href="#icon-list"></use></svg>
+                  </button>
+                  <button type="button">
+                    <svg><use href="#icon-cast"></use></svg>
+                  </button>
+                </div>
+              </div>
 
               <div class="player-ctrltime">
                 <div class="player-ctrlcurrenttime" ref="ctrlCurrentTime">00:00</div>

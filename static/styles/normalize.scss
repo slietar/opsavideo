@@ -41,13 +41,15 @@ button {
   text-align: left;
 }
 
-button, select {
+button, input, select {
   appearance: none;
   -moz-appearance: none;
   -webkit-appearance: none;
 
-  cursor: pointer;
-
   font-family: inherit;
+}
+
+button, input[type="range"], select {
+  cursor: pointer;
 }
 
