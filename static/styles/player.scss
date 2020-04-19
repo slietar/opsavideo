@@ -45,6 +45,10 @@
       display: none;
     }
 
+    &._nocursor {
+      cursor: none;
+    }
+
 
     /* Controls */
     $control-cursor-shadow: 1px 1px 1px rgba(#000, 0.3);
@@ -55,6 +59,13 @@
       position: absolute;
       left: 0;
       bottom: 0;
+
+      .controller {
+        width: 50vw;
+        max-width: 500px;
+
+        margin-bottom: 70px;
+      }
     }
 
     &-controls {

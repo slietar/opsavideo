@@ -6,6 +6,7 @@
 
 import { Fragment, createElement, getReferences } from '@slietar/jsx-dom';
 
+import { Controller } from './components/controller.jsx';
 import * as util from './util.js';
 
 
@@ -28,9 +29,12 @@ export class WindowPlayer {
         this.player.classList.add('_controllable');
         this.player.classList.remove('_loading');
       }} onloadedmetadata={() => {
-        this.refs.ctrlDuration = toTime(this.video.duration);
+        this.controller.duration = this.video.duration;
+        this.togglePause(true);
       }} ontimeupdate={() => {
-        this.setCtrlBarPosition(this.video.currentTime / this.video.duration);
+        if (!this.controller.seeking) {
+          this.controller.position = this.video.currentTime / this.video.duration;
+        }
       }} onprogress={() => {
         let items = [];
 
@@ -40,25 +44,23 @@ export class WindowPlayer {
           let length = endPos - startPos;
 
           if (length > 0.01) {
-            items.push(
-              <span class="player-ctrlbar-buffered" style={`left: ${startPos * 100}%; width: ${length * 100}%`}></span>
-            );
+            items.push({ length, position: startPos });
           }
         }
 
-        this.refs.ctrlBarBufferedItems = items;
+        this.controller.buffered = items;
       }} onplaying={() => {
         this.player.classList.remove('_loading');
       }} onwaiting={() => {
         this.player.classList.add('_loading');
       }} onended={() => {
-        this.player.classList.add('_paused');
+        this.controller.paused = true;
       }} onplay={() => {
-        this.player.classList.remove('_paused');
+        this.controller.paused = false;
       }} onpause={() => {
-        this.player.classList.add('_paused');
+        this.controller.paused = true;
       }}>
-        <source src="http://localhost:8080/output2.mp4" type="video/mp4" />
+        <source src="http://localhost:8080/output.webm" type="video/mp4" />
       </video>
     );
 
@@ -84,19 +86,49 @@ export class WindowPlayer {
     });
 
     document.addEventListener('fullscreenchange', () => {
-      this.player.classList.toggle('_fullscreen', document.fullscreenElement !== null);
+      this.controller.fullscreen = document.fullscreenElement !== null;
+    });
+
+    this.controller.installVisibilityWatcher({
+      delayOutside: 500,
+      elementOutside: this.player
     });
   }
 
-  togglePause() {
-    if (this.video.paused || this.video.ended) {
-      this.video.play();
-    } else {
+  togglePause(pause = !(this.video.paused || this.video.ended)) {
+    if (pause) {
       this.video.pause();
+    } else {
+      this.video.play();
     }
   }
 
   render() {
+    this.controller = new Controller({
+      fastRewind: () => {
+        this.video.playbackRate = Math.max(0.25, Math.min(this.video.playbackRate / 2, 1));
+      },
+      fastForward: () => {
+        this.video.playbackRate = Math.min(4, Math.max(this.video.playbackRate * 2, 1));
+      },
+      fullscreen: () => {
+        if (document.fullscreenElement === null) {
+          this.player.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      },
+      playPause: () => {
+        this.togglePause();
+      },
+      seek: (position) => {
+        this.video.currentTime = position * this.video.duration;
+      },
+      setVolume: (value) => {
+        this.video.volume = value;
+      }
+    });
+
     let tree = (
       <div id="window-player">
         <div class="player" ref="player">
@@ -109,81 +141,7 @@ export class WindowPlayer {
           <div ref="video"></div>
 
           <div class="player-controlscontainer">
-            <div class="player-controls">
-
-              <div class="player-ctrlsettings">
-                <div class="player-ctrlvol">
-                  <button type="button" class="player-ctrlmute">
-                    <svg><use href="#icon-volume-high"></use></svg>
-                    <svg><use href="#icon-volume-mute"></use></svg>
-                    <svg><use href="#icon-volume-low"></use></svg>
-                    <svg><use href="#icon-volume-medium"></use></svg>
-                  </button>
-                  <input type="range" />
-                </div>
-
-                <div class="player-ctrlplay">
-                  <button type="button" onclick={() => {
-                    this.video.playbackRate = Math.max(0.25, Math.min(this.video.playbackRate / 2, 1));
-                  }}>
-                    <svg><use href="#icon-fastrewind"></use></svg>
-                  </button>
-
-                  <button type="button" class="player-ctrlpause" onclick={() => { this.togglePause(); }}>
-                    <svg><use href="#icon-play"></use></svg>
-                    <svg><use href="#icon-pause"></use></svg>
-                  </button>
-
-                  <button type="button" onclick={() => {
-                    this.video.playbackRate = Math.min(4, Math.max(this.video.playbackRate * 2, 1));
-                  }}>
-                    <svg><use href="#icon-fastforward"></use></svg>
-                  </button>
-                </div>
-
-                <div class="player-ctrloptions">
-                  <button type="button">
-                    <svg><use href="#icon-picture-in-picture"></use></svg>
-                  </button>
-                  <button type="button" class="player-ctrlfullscreen" onclick={() => {
-                    if (document.fullscreenElement) {
-                      document.exitFullscreen();
-                    } else {
-                      this.player.requestFullscreen();
-                    }
-                  }}>
-                    <svg><use href="#icon-fullscreen"></use></svg>
-                    <svg><use href="#icon-fullscreen-exit"></use></svg>
-                  </button>
-                  <button type="button">
-                    <svg><use href="#icon-list"></use></svg>
-                  </button>
-                  <button type="button">
-                    <svg><use href="#icon-cast"></use></svg>
-                  </button>
-                </div>
-              </div>
-
-              <div class="player-ctrltime">
-                <div class="player-ctrlcurrenttime" ref="ctrlCurrentTime">00:00</div>
-
-                <div class="player-ctrlbar" ref="ctrlBar" onclick={(event) => {
-                  let rect = this.refs.ctrlBar.self.getBoundingClientRect();
-                  let position = (event.clientX - rect.left) / rect.width;
-
-                  this.setCtrlBarPosition(position);
-                  this.video.currentTime = position * this.video.duration;
-                }}>
-                  <span class="player-ctrlbar-all"></span>
-                  <span class="player-ctrlbar-buffered"></span>
-                  <span class="player-ctrlbar-played" ref="ctrlBarPlayed"></span>
-                  <div class="player-ctrlbar-cursor" ref="ctrlBarCursor"></div>
-                  <div ref="ctrlBarBufferedItems"></div>
-                </div>
-
-                <div class="player-ctrlduration" ref="ctrlDuration">00:00</div>
-              </div>
-            </div>
+            {this.controller.render()}
           </div>
         </div>
       </div>
