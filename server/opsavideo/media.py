@@ -8,6 +8,7 @@ import logging
 import lxml.html
 import os
 import subprocess
+import threading
 import urllib.parse
 import urllib.request
 import watchdog.events
@@ -27,8 +28,14 @@ class MediaManager:
         self.watcher = Watcher(self, origin=os.path.abspath(path), patterns=["*.avi", "*.mkv", "*.mp4"])
 
     def start(self):
-        self.watcher.discover()
-        self.watcher.start()
+        def handler():
+            LOG.info("Starting discovery")
+            self.watcher.discover()
+            LOG.info("Done discovering, starting watcher")
+            self.watcher.start()
+
+        thread = threading.Thread(target=handler)
+        thread.start()
 
     def stop(self):
         self.watcher.stop()
