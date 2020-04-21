@@ -1,4 +1,5 @@
 import PTN
+import asyncio
 import fnmatch
 import glob
 import hashlib
@@ -6,12 +7,12 @@ import json
 import logging
 import lxml.html
 import os
+import subprocess
 import urllib.parse
 import urllib.request
 import watchdog.events
 import watchdog.observers
 
-import asyncio
 
 LOG = logging.getLogger('opsavideo.media')
 class MediaManager:
@@ -23,7 +24,7 @@ class MediaManager:
         self.files = dict() # id -> episode, movie, etc.
         self.medias = dict() # IMDB id -> TV series, movie, etc.
 
-        self.watcher = Watcher(self, origin=path, patterns=["*.avi", "*.mkv", "*.mp4"])
+        self.watcher = Watcher(self, origin=os.path.abspath(path), patterns=["*.avi", "*.mkv", "*.mp4"])
 
     def start(self):
         self.watcher.discover()
@@ -49,9 +50,10 @@ class MediaManager:
             self.find_media_season(media, torrent['season'])
 
         file_id = self.get_file_id(filepath)
-        LOG.info("Add '%s' (%s)", filepath, file_id)
+        file_metadata = self.get_file_metadata(filepath)
 
         self.files[file_id] = {
+            **file_metadata,
             'episode': torrent.get('episode'),
             'filepath': filepath,
             'media': media['imdb_id'] if (media is not None) else None,
@@ -62,6 +64,8 @@ class MediaManager:
             'title': title,
             'year': torrent.get('year')
         }
+
+        LOG.info("Add '%s' (%s)", filepath, file_id)
 
         self.publish()
 
@@ -161,6 +165,36 @@ class MediaManager:
 
     def get_file_id(self, filepath):
         return hashlib.sha256(bytes(filepath, 'utf-8')).hexdigest()
+
+    def get_file_metadata(self, filepath):
+        result = subprocess.run(["ffprobe", filepath, "-show_entries", "stream=codec_name,codec_type,index:stream_tags=language,title:format=duration", "-print_format", "json"], capture_output=True, text=True)
+
+        if result.returncode != 0:
+            raise Exception("ffprobe returned non-zero exit code")
+
+        data = json.loads(result.stdout)
+
+        audio_streams = list()
+        video_codec = None
+
+        for stream in data['streams']:
+            if stream['codec_type'] == 'audio':
+                tags = stream.get('tags')
+
+                audio_streams.append({
+                    'codec': stream['codec_name'],
+                    'index': stream['index'],
+                    'language': tags.get('language') if tags is not None else None,
+                    'title': tags.get('title') if tags is not None else None
+                })
+            elif stream['codec_type'] == 'video' and video_codec is None:
+                video_codec = stream['codec_name']
+
+        return {
+            'audio_streams': audio_streams,
+            'duration': float(data['format']['duration']),
+            'video_codec': video_codec
+        }
 
 
 
