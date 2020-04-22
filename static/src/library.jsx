@@ -16,55 +16,23 @@ export class WindowLibrary {
     this.context = context;
     this.context.log('Instantiate');
 
-    this.mediaObjects = null;
-    this.currentMediaObjectId = null;
+    this.medias = null;
+    this.currentMediaId = null;
+    this.currentSeasonNumber = null;
 
     this.onFirstMessageCallback = null;
-    this.stopSubscription = this.app.server.subscribe('listfiles', {}, ({ files, medias }) => {
-      let objects = [];
-      let referencedMedias = {};
-
-      for (let [fileId, file] of Object.entries(files)) {
-        if (file.media) {
-          if (referencedMedias[file.media] !== void 0) {
-            let object = objects[referencedMedias[file.media]];
-            object.files.push({ ...file, id: fileId });
-          } else {
-            referencedMedias[file.media] = objects.length;
-
-            objects.push({
-              type: 'media',
-              id: util.hash16(file.media),
-
-              files: [{ ...file, id: fileId }],
-              media: medias[file.media]
-            });
-          }
-        } else {
-          objects.push({
-            type: 'file',
-            id: util.hash16(file.filepath),
-
-            files: [{ ...file, id: fileId }]
-          });
-        }
-      }
-
-      let isFirstMessage = this.mediaObjects === null;
-      this.mediaObjects = objects;
+    this.stopSubscription = this.app.server.subscribe('listfiles', {}, (medias) => {
+      let isFirstMessage = this.medias === null;
+      this.medias = medias;
 
       if (isFirstMessage && this.onFirstMessageCallback) {
         this.onFirstMessageCallback();
-      } else if (this.currentMediaObjectId) {
-        this.displayMediaObject();
+      } else if (this.currentMediaId) {
+        this.displayMedia();
       } else {
-        this.displayMediaObjectList();
+        this.displayMediaList();
       }
     });
-  }
-
-  get currentMediaObject() {
-    return this.currentMediaObjectId && this.mediaObjects.find((object) => object.id === this.currentMediaObjectId);
   }
 
   playFile(file) {
@@ -80,40 +48,39 @@ export class WindowLibrary {
     });
   }
 
-  selectSeason(season) {
-    this.app.setState({ seasonNumber: season });
-    this.refs.contents.episodeList = this.renderMediaObjectEpisodeList(this.currentMediaObject, season);
-    this.refs.contents.seasonSelector.self.value = season.toString();
+  selectSeason(seasonNumber /* string */) {
+    this.currentSeasonNumber = seasonNumber;
+
+    this.app.setState({ seasonNumber });
+    this.refs.contents.episodeList = this.renderMediaEpisodeList(this.medias[this.currentMediaId], seasonNumber);
+    this.refs.contents.seasonSelector.self.value = seasonNumber;
   }
 
 
-  displayMediaObject(objectId /* optional */, { seasonNumber } = {}) {
-    if (objectId) {
-      this.currentMediaObjectId = objectId;
+  displayMedia(mediaId, seasonNumber) {
+    if (mediaId) {
+      this.currentMediaId = mediaId;
     }
 
-    let object = this.currentMediaObject;
+    let media = this.medias[this.currentMediaId];
 
-    if (!object) {
+    if (!media) {
       this.context.open('/');
       return;
     }
 
-    this.refs.contents = this.renderMediaObject(object);
+    this.refs.contents = this.renderMedia(media);
 
-    if (object.media && object.media.seasons) {
-      this.selectSeason(
-        seasonNumber !== void 0
-          ? seasonNumber
-          : parseInt(Object.keys(object.media.seasons)[0])
-      );
+    if (media.seasons) {
+      this.selectSeason(seasonNumber || this.currentSeasonNumber || Object.keys(media.seasons)[0]);
     }
   }
 
-  displayMediaObjectList() {
-    this.currentMediaObjectId = null;
+  displayMediaList() {
+    this.currentMediaId = null;
+    this.currentSeasonNumber = null;
 
-    this.refs.contents = this.renderMediaObjectList();
+    this.refs.contents = this.renderMediaList();
   }
 
 
@@ -128,24 +95,15 @@ export class WindowLibrary {
     return tree.local.self;
   }
 
-  renderMediaObject(object) {
-    let media = object.media;
-    let file = object.files[0];
-
-    let description = media && media.description;
-    let imageUrl = media && media.image;
-    let title = media && media.title || file.title;
-    let wallpaperUrl = media && media.wallpaper ? (media.wallpaper.substring(0, media.wallpaper.search('@._V1_')) + `@._V1_SX${Math.round(window.innerWidth / 4)}_AL_.jpg`) : '';
-
-
+  renderMedia(media) {
     let contents;
 
-    if (media && media.seasons) {
+    if (media.seasons) {
       contents = (
         <div class="episode-selector">
-          <select class="episode-seasonselector" ref=".seasonSelector" onchange={(event) => { this.selectSeason(parseInt(event.target.value)); }}>
-            {Object.keys(media.seasons).map((strIndex) =>
-              <option value={parseInt(strIndex)}>Season {strIndex}</option>
+          <select class="episode-seasonselector" ref=".seasonSelector" onchange={(event) => { this.selectSeason(event.target.value); }}>
+            {Object.keys(media.seasons).map((seasonNumber) =>
+              <option value={seasonNumber}>Season {seasonNumber}</option>
             )}
           </select>
           <ul class="episode-list" ref=".episodeList"></ul>
@@ -153,43 +111,36 @@ export class WindowLibrary {
       );
     } else {
       contents = (
-        <button onclick={() => { this.playFile(object.files[0]); }}>Play</button>
+        <button onclick={() => { this.playFile(media.files[Object.keys(media.files)[0]]); }}>Play</button>
       );
     }
 
     return (
       <div class="app-media">
-        <div class="app-media-background" style={wallpaperUrl ? `background-image: url(${wallpaperUrl})` : ''}></div>
-        <div class="app-media-image" style={imageUrl ? `background-image: url(${imageUrl});` : ''}></div>
+        <div class="app-media-background" style={media.wallpaper_url ? `background-image: url(${util.setImdbImageWidth(media.wallpaper_url, Math.round(window.innerWidth / 4))})` : ''}></div>
+        <div class="app-media-image" style={media.poster_url ? `background-image: url(${media.poster_url});` : ''}></div>
         <div class="app-media-contents">
-          <h1>{title}</h1>
-          { description && <p>{description}</p> }
+          <h1>{media.title}</h1>
+          {media.description && <p>{media.description}</p>}
           {contents}
         </div>
       </div>
     );
   }
 
-  renderMediaObjectList() {
+  renderMediaList() {
     return (
       <div class="app-container">
         <div class="media-list-container">
-          <ul class="media-list" ref="mediaObjectList">
-            {this.mediaObjects.map((object) => {
-              let media = object.media;
-              let file = object.files[0];
-
-              let title = media && media.title || file.title;
-              let imageUrl = media && media.image;
-              // let description = media && media.description;
-
+          <ul class="media-list">
+            {Object.values(this.medias).map((media) => {
               return (
                 <li>
                   <button class="media-item" onclick={() => {
-                    this.context.open('/' + object.id);
+                    this.context.open('/' + media.id);
                   }}>
-                    <div class="media-image" style={imageUrl ? `background-image: url(${imageUrl[0]});` : ''}></div>
-                    <div class="media-name">{title}</div>
+                    <div class="media-image" style={media.poster_url ? `background-image: url(${media.poster_url});` : ''}></div>
+                    <div class="media-name">{media.title}</div>
                   </button>
                 </li>
               );
@@ -200,11 +151,11 @@ export class WindowLibrary {
     );
   }
 
-  renderMediaObjectEpisodeList(object, season) {
-    return object.media.seasons[season].map((episode, episodeIndex) => {
-      let files = object.files.filter((file) => file.season === season && file.episode === episodeIndex + 1);
+  renderMediaEpisodeList(media, seasonNumber /* string */) {
+    return Object.entries(media.seasons[seasonNumber]).map(([episodeNumber, episode]) => {
+      let files = episode.files.map((fileId) => media.files[fileId]);
       let available = files.length > 0;
-      let episodeThumbnailStyle = episode.thumbnail ? `background-image: url(${util.setImdbImageWidth(episode.thumbnail, 300)});` : ''; /* To be replaced with attr() magic once supported. */
+      let episodeThumbnailStyle = episode.thumbnail_url ? `background-image: url(${util.setImdbImageWidth(episode.thumbnail_url, 300)});` : '';
 
       return (
         <li class={available ? '' : 'episode_unavailable'}>
@@ -221,15 +172,15 @@ export class WindowLibrary {
             </a>
             : <div class="episode-thumbnail" style={episodeThumbnailStyle}></div>
           }
-          <div class="episode-title">{episodeIndex + 1}. {episode.title}</div>
-          <p class="episode-description">{episode.description}</p>
+          <div class="episode-title">{episodeNumber}. {episode.title}</div>
+          {episode.description && <p class="episode-description">{episode.description}</p>}
         </li>
       );
     });
   }
 
   route(path, state) {
-    if (this.mediaObjects === null) {
+    if (this.medias === null) {
       this.onFirstMessageCallback = () => {
         this.route(path, state);
       };
@@ -240,9 +191,9 @@ export class WindowLibrary {
     this.context.log('Route ' + path);
 
     if (path === '/') {
-      this.displayMediaObjectList();
+      this.displayMediaList();
     } else {
-      this.displayMediaObject(path.substring(1), { seasonNumber: state.seasonNumber });
+      this.displayMedia(path.substring(1), state.seasonNumber);
     }
   }
 

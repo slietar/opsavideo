@@ -86,8 +86,8 @@ def main():
 
     server = Server()
 
-    ccdiscovery = server.add_noticeboard('ccdiscovery', [])
-    listfiles = server.add_noticeboard('listfiles', { 'files': dict(), 'medias': dict() })
+    ccdiscovery = server.add_noticeboard('ccdiscovery', list())
+    listfiles = server.add_noticeboard('listfiles', dict())
     server.add_method('playfile', playfile)
 
     loop = asyncio.get_event_loop()

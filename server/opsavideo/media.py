@@ -5,14 +5,14 @@ import glob
 import hashlib
 import json
 import logging
-import lxml.html
 import os
 import subprocess
 import threading
-import urllib.parse
-import urllib.request
 import watchdog.events
 import watchdog.observers
+
+from . import iso639
+from .imdb import IMDBDatabase
 
 
 LOG = logging.getLogger('opsavideo.media')
@@ -21,14 +21,19 @@ class MediaManager:
         self.obsever = None
         self.noticeboard = noticeboard
         self.loop = loop
+        self.path = path
 
-        self.files = dict() # id -> episode, movie, etc.
-        self.medias = dict() # IMDB id -> TV series, movie, etc.
+        self.imdb = IMDBDatabase(path, version="0")
+
+        self.files = dict()
+        self.medias = dict()
 
         self.watcher = Watcher(self, origin=os.path.abspath(path), patterns=["*.avi", "*.mkv", "*.mp4"])
 
     def start(self):
         def handler():
+            self.imdb.load_cache()
+
             LOG.info("Starting discovery")
             self.watcher.discover()
             LOG.info("Done discovering, starting watcher")
@@ -41,137 +46,137 @@ class MediaManager:
         self.watcher.stop()
 
     def publish(self):
-        self.noticeboard.publish_threadsafe({
-            'files': self.files,
-            'medias': self.medias
-        }, loop=self.loop)
+        out_medias = dict()
+
+        for media_id, media in self.medias.items():
+            out_media = {
+                'id': media_id,
+                'files': dict(),
+
+                'description': None,
+                'poster_url': None,
+                'seasons': None,
+                'storyline': None,
+                'title': media.get('title'),
+                'year': media.get('year')
+            }
+
+            if 'imdb_id' in media:
+                imdb_media = self.imdb.request_media(media['imdb_id'])
+                out_media.update({
+                    'description': imdb_media['description'],
+                    'poster_url': imdb_media['poster_url'],
+                    'seasons': {season_num: {episode_num: {
+                        **episode, 'files': list()
+                    } for (episode_num, episode) in season.items()} for (season_num, season) in imdb_media['seasons'].items()} if imdb_media['seasons'] else None,
+                    'storyline': imdb_media['storyline'],
+                    'title': imdb_media['title'],
+                    'wallpaper_url': imdb_media['wallpaper_url']
+                })
+
+            for file_id in media['files']:
+                file = self.files[file_id]
+                out_media['files'][file_id] = {
+                    'audio_streams': {str(stream['index']): stream['language'] for stream in file['audio_streams']},
+                    'quality': file['quality'],
+                    'resolution': file['resolution']
+                }
+
+                season_num = file['season_number']
+                episode_num = file['episode_number']
+
+                if season_num and episode_num:
+                    if not out_media['seasons']:
+                        out_media['seasons'] = dict()
+
+                    seasons = out_media['seasons']
+                    if not season_num in seasons:
+                        seasons[season_num] = dict()
+
+                    season = seasons[season_num]
+                    if not episode_num in season:
+                        season[episode_num] = {
+                            'description': None,
+                            'files': list(),
+                            'title': f"S{season_num}E{episode_num}",
+                            'thumbnail_url': None
+                        }
+
+                    season[episode_num]['files'].append(file_id)
+
+            # out_medias.append(out_media)
+            out_medias[media_id] = out_media
+
+        self.noticeboard.publish_threadsafe(out_medias, loop=self.loop)
 
     def add_file(self, filepath):
         name = os.path.splitext(os.path.basename(filepath))[0]
         torrent = PTN.parse(name)
 
-        title = torrent['title']
-        media = self.find_media(title)
+        file_id = hash_str(filepath)
+        imdb_id = self.imdb.query(torrent['title'], year=torrent.get('year'))
 
-        if (media is not None) and ('season' in torrent):
-            self.find_media_season(media, torrent['season'])
+        if imdb_id:
+            media_id = hash_str(imdb_id)
+            self.imdb.request_media(imdb_id) # prepare request
 
-        file_id = self.get_file_id(filepath)
-        file_metadata = self.get_file_metadata(filepath)
+            if not media_id in self.medias:
+                self.medias[media_id] = {
+                    'files': set(),
+
+                    'imdb_id': imdb_id
+                }
+
+            if ('season' in torrent) and ('episode' in torrent):
+                self.imdb.request_media_season(imdb_id, str(torrent['season']))
+
+        else:
+            media_id = hash_str(torrent['title'])
+
+            if not media_id in self.medias:
+                self.medias[media_id] = {
+                    'files': set(),
+
+                    'seasons': dict() if 'season' in torrent else None,
+                    'title': torrent['title'],
+                    'year': torrent.get('year')
+                }
 
         self.files[file_id] = {
-            **file_metadata,
-            'episode': torrent.get('episode'),
+            **self.get_file_metadata(filepath),
+            'episode_number': str(torrent['episode']) if 'episode' in torrent else None,
             'filepath': filepath,
-            'media': media['imdb_id'] if (media is not None) else None,
+            'media_id': media_id,
             'quality': torrent.get('quality'),
             'resolution': torrent.get('resolution'),
-            'season': torrent.get('season'),
-            'size': os.path.getsize(filepath),
-            'title': title,
-            'year': torrent.get('year')
+            'season_number': str(torrent['season']) if 'season' in torrent else None,
+            'size': os.path.getsize(filepath)
         }
 
-        LOG.info("Add '%s' (%s)", filepath, file_id)
+        media = self.medias[media_id]
+        media['files'].add(file_id)
 
+        LOG.info("Adding file '%s' (%s)", filepath, file_id)
+
+        self.imdb.save_cache()
         self.publish()
 
     def remove_file(self, filepath):
-        file_id = self.get_file_id(filepath)
-        LOG.info("Remove '%s' (%s)", filepath, file_id)
+        file_id = hash_str(filepath)
+        LOG.info("Removing file '%s' (%s)", filepath, file_id)
+
+        media_id = self.files[file_id]['media_id']
+        media = self.medias[media_id]
+
+        media['files'].remove(file_id)
+
+        if not media['files']:
+            del self.medias[media_id]
 
         del self.files[file_id]
 
         self.publish()
 
-    def find_media(self, title):
-        try:
-            raw_data = request(f"http://sg.media-imdb.com/suggests/{urllib.parse.quote(title[0].lower())}/{urllib.parse.quote(title)}.json")
-            data = json.loads(raw_data[raw_data.index('(') + 1:-1])
-
-            if not 'd' in data:
-                return None
-
-            # find first media of interest
-            result = None
-            for item in data['d']:
-                if 'q' in item: # not a media
-                    result = item
-                    break
-
-            if not result:
-                return None
-
-            imdb_id = result['id']
-
-            if imdb_id in self.medias:
-                return self.medias[imdb_id]
-
-
-            tree = lxml.html.fromstring(request(f"https://www.imdb.com/title/{imdb_id}/"))
-
-            description = tree.find_class("summary_text")[0].text_content().strip()
-            duration = tree.xpath("//time")[0].text_content().strip()
-
-
-            tree = lxml.html.fromstring(request(f"https://www.imdb.com/title/{imdb_id}/mediaindex?refine=still_frame"))
-
-            wallpaper = None
-            wallpaperElement = tree.xpath("""//img[@width="100"]""")
-
-            if wallpaperElement:
-                wallpaper = wallpaperElement[0].get("src")
-
-
-            self.medias[imdb_id] = {
-                'description': description,
-                'duration': duration,
-                'seasons': (dict() if result.get('q') == 'TV series' else None),
-                'imdb_id': imdb_id,
-                'image': result.get('i'),
-                'main_actors': result['s'],
-                'title': result['l'],
-                'wallpaper': wallpaper,
-                'year': result.get('y')
-            }
-
-            return self.medias[imdb_id]
-
-        except urllib.error.HTTPError as e:
-            return None
-
-    def find_media_season(self, media, season):
-        if season in media['seasons']:
-            return
-
-        try:
-            tree = lxml.html.fromstring(request(f"https://www.imdb.com/title/{media['imdb_id']}/episodes?season={season}"))
-
-            episodes = list()
-
-            for episode_element in tree.find_class("list_item"):
-                episode_title = episode_element.xpath(".//a[@itemprop='name']")[0].text_content()
-                episode_description = episode_element.find_class("item_description")[0].text_content().strip()
-                episode_thumbnail = None
-                episode_thumbnail_element = episode_element.xpath(".//img")
-
-                if episode_thumbnail_element:
-                    episode_thumbnail = episode_thumbnail_element[0].get("src")
-
-                episodes.append({
-                    'description': episode_description,
-                    'imdb_id': None,
-                    'thumbnail': episode_thumbnail,
-                    'title': episode_title,
-                })
-
-            media['seasons'][season] = episodes
-
-        except urllib.error.HTTPError as e:
-            return
-
-    def get_file_id(self, filepath):
-        return hashlib.sha256(bytes(filepath, 'utf-8')).hexdigest()
 
     def get_file_metadata(self, filepath):
         result = subprocess.run(["ffprobe", filepath, "-show_entries", "stream=codec_name,codec_type,index:stream_tags=language,title:format=duration", "-print_format", "json"], capture_output=True, text=True)
@@ -188,11 +193,17 @@ class MediaManager:
             if stream['codec_type'] == 'audio':
                 tags = stream.get('tags')
 
+                title = tags.get('title') if tags else None
+                language = (tags.get('language') if tags else None) or "und"
+
+                if language == "und" and title:
+                    language = iso639.from_title(title)
+
                 audio_streams.append({
                     'codec': stream['codec_name'],
                     'index': stream['index'],
-                    'language': tags.get('language') if tags is not None else None,
-                    'title': tags.get('title') if tags is not None else None
+                    'language': language,
+                    'title': title
                 })
             elif stream['codec_type'] == 'video' and video_codec is None:
                 video_codec = stream['codec_name']
@@ -275,6 +286,6 @@ class EventHandler(watchdog.events.FileSystemEventHandler):
             self.watcher.add_file(event.dest_path)
 
 
-def request(url):
-    return urllib.request.urlopen(url).read().decode("utf-8")
+def hash_str(value):
+    return hashlib.sha256(bytes(value, 'utf-8')).hexdigest()
 

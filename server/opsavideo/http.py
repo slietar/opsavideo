@@ -2,6 +2,8 @@ from aiohttp import web
 import asyncio
 import os
 import logging
+import urllib
+
 from .rpc import Server
 
 LOG = logging.getLogger('opsavideo.http')
@@ -40,3 +42,8 @@ async def run(server, *, hostname, port, static):
 
     LOG.info("Listening on http://%s:%d", hostname, port)
     await site.start()
+
+
+def request(url):
+    return urllib.request.urlopen(url).read().decode("utf-8")
+
