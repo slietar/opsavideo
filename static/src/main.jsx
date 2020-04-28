@@ -246,6 +246,19 @@ class Application {
       return win.instance;
     }
 
+    if (this.currentWindowIndex !== null) {
+      let oldWin = this.windows[this.currentWindowIndex];
+
+      if (!oldWin.visible) {
+        if (oldWin.instance.unmount) {
+          oldWin.instance.unmount();
+        }
+
+        oldWin.context = null;
+        oldWin.instance = null;
+      }
+    }
+
     if (!win.instance) {
       win.context = {
         log(message) {
