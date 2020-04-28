@@ -53,10 +53,10 @@ class Application {
     this.server = new ServerIO();
 
     this.windows = [
-      { Class: WindowLibrary, mount: '/library', name: 'Library' },
-      { Class: WindowPlayer, mount: '/player', name: 'Player' },
-      { Class: WindowDevice, mount: '/device', name: 'Device' }
-    ].map(({ Class, mount, name }) => ({ Class, mount, name, context: null, instance: null }));
+      { Class: WindowLibrary, mount: '/library', name: 'Library', visible: true },
+      { Class: WindowDevice, mount: '/device', name: 'Device', visible: true },
+      { Class: WindowPlayer, mount: '/player', name: 'Player', visible: false }
+    ].map((win) => ({ ...win, context: null, instance: null }));
 
     this.overlay = new Overlay();
 
@@ -174,10 +174,6 @@ class Application {
   }
 
   render() {
-    let preventDefaultListener = (event) => {
-      event.preventDefault();
-    };
-
     let tree = (
       <div id="app">
         <header>
@@ -186,13 +182,13 @@ class Application {
             <span class="title-sub">Video</span>
           </div>
           <nav>
-            <ul>
-              <li><a href="#" onclick={preventDefaultListener}>Device</a></li>
-              <li><a href="#/library" class="active">Library</a></li>
-            </ul>
+            <ul ref="windowList"></ul>
           </nav>
           <div class="device-data" ref="deviceData">
-            <a href="#" class="device-current" onclick={(event) => { event.preventDefault(); this.refs.deviceData.self.classList.toggle('dropdown-active'); }}>
+            <a href="#" class="device-current" onclick={(event) => {
+              event.preventDefault();
+              this.refs.deviceData.self.classList.toggle('dropdown-active');
+            }}>
               <div class="device-info-blank" ref="deviceCurrentInfo">Select a device</div>
               <div class="device-dropdown-arrow"></div>
             </a>
@@ -233,6 +229,15 @@ class Application {
       )]
   }
 
+  renderWindowList() {
+    return this.windows
+      .map((win, index) => {
+        let isCurrent = this.currentWindowIndex === index;
+        return (win.visible || isCurrent) && (<li><a href={'#' + win.mount} class={isCurrent ? 'active ' : ''}>{win.name}</a></li>) || void 0;
+      })
+      .filter((el) => el);
+  }
+
 
   updateWindow(index) {
     let win = this.windows[index];
@@ -258,6 +263,7 @@ class Application {
 
     this.currentWindowIndex = index;
     this.refs.appContents = <>{win.instance.render()}</>;
+    this.refs.windowList = this.renderWindowList();
 
     return win.instance;
   }
