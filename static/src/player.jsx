@@ -67,7 +67,7 @@ export class WindowPlayer {
     this.player = this.refs.player.self;
     this.video = this.refs.video.self;
 
-    this.player.classList.add('_loading', '_paused');
+    this.player.classList.add('_loading');
 
     /* TODO: improve */
     window.addEventListener('keydown', (event) => {

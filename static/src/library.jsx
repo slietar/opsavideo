@@ -35,7 +35,7 @@ export class WindowLibrary {
     });
   }
 
-  playFile(file) {
+  playFile(fileId) {
     let chromecast = this.app.currentChromecast;
 
     if (!chromecast) {
@@ -44,7 +44,7 @@ export class WindowLibrary {
 
     this.app.server.request('playfile', {
       chromecast_uuid: chromecast.uuid,
-      file_id: file.id
+      file_id: fileId
     });
   }
 
@@ -111,8 +111,8 @@ export class WindowLibrary {
       );
     } else {
       contents = (
-        <button onclick={() => { this.playFile(media.files[Object.keys(media.files)[0]]); }}>Play</button>
       );
+        <button onclick={() => { this.playFile(Object.keys(media.files)[0]); }}>Play</button>
     }
 
     return (
@@ -153,8 +153,7 @@ export class WindowLibrary {
 
   renderMediaEpisodeList(media, seasonNumber /* string */) {
     return Object.entries(media.seasons[seasonNumber]).map(([episodeNumber, episode]) => {
-      let files = episode.files.map((fileId) => media.files[fileId]);
-      let available = files.length > 0;
+      let available = episode.files.length > 0;
       let episodeThumbnailStyle = episode.thumbnail_url ? `background-image: url(${util.setImdbImageWidth(episode.thumbnail_url, 300)});` : '';
 
       return (
@@ -163,9 +162,7 @@ export class WindowLibrary {
             ? <a href="#" class="episode-thumbnail" style={episodeThumbnailStyle} onclick={(event) => {
               event.preventDefault();
 
-              if (files.length > 0) {
-                this.playFile(files[0]);
-              }
+              this.playFile(episode.files[0]);
             }}>
 
               {playIcon.cloneNode(true)}
