@@ -17,11 +17,12 @@ from .imdb import IMDBDatabase
 
 LOG = logging.getLogger('opsavideo.media')
 class MediaManager:
-    def __init__(self, path, noticeboard, loop):
+    def __init__(self, path, noticeboard, loop, server):
         self.obsever = None
         self.noticeboard = noticeboard
         self.loop = loop
         self.path = path
+        self.server = server
 
         self.imdb = IMDBDatabase(path, version="0")
 
@@ -38,6 +39,8 @@ class MediaManager:
             self.watcher.discover()
             LOG.info("Done discovering, starting watcher")
             self.watcher.start()
+
+            # print(self.host_file(list(self.files.keys())[0]))
 
         thread = threading.Thread(target=handler)
         thread.start()
@@ -79,7 +82,8 @@ class MediaManager:
                 out_media['files'][file_id] = {
                     'audio_streams': {str(stream['index']): stream['language'] for stream in file['audio_streams']},
                     'quality': file['quality'],
-                    'resolution': file['resolution']
+                    'resolution': file['resolution'],
+                    'size': file['size']
                 }
 
                 season_num = file['season_number']
@@ -213,6 +217,20 @@ class MediaManager:
             'duration': float(data['format']['duration']),
             'video_codec': video_codec
         }
+
+    def host_file(self, file_id, audio_stream_index = None):
+        if self.server is None:
+            return None
+
+        if not file_id in self.files:
+            return None
+
+        file = self.files[file_id]
+
+        if audio_stream_index is None:
+            audio_stream_index = file['audio_streams'][0]['index']
+
+        return self.server.add_item(file_id, filepath=file['filepath'], duration=file['duration'], audio_channel=audio_stream_index)
 
 
 

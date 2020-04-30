@@ -9,6 +9,7 @@ import time
 import uuid
 import websockets
 
+from .conversion import ConversionServer
 from .media import MediaManager
 from .rpc import Noticeboard, Server
 from . import http
@@ -58,25 +59,28 @@ def main():
     parser.add_argument("--static", type=str, default=None)
     parser.add_argument("--no-static", action='store_const', const=None, dest="static")
     parser.add_argument("--media", type=str, default="tmp")
-    parser.add_argument("--media-url", type=str)
+    parser.add_argument("--media-port", type=int, default=8060)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
 
     async def playfile(data):
-        if args.media_url is None:
-            return {}
-
         chromecast = chromecasts_obj[uuid.UUID(data['chromecast_uuid'])]
-        filepath = manager.files[data['file_id']]['filepath']
-
-        print(chromecast, filepath)
 
         chromecast.wait()
         mc = chromecast.media_controller
-        mc.play_media(args.media_url + os.path.relpath(filepath, args.media), 'video/mp4')
-        print(args.media_url + os.path.relpath(filepath, args.media))
+
+        url = manager.host_file(data['file_id'])
+
+        print("File -->", url)
+
+        if url is None:
+            return {}
+
+        mc.play_media(url, "video/mp4", stream_type="LIVE")
         mc.block_until_active()
+
+        print(mc.status)
 
         mc.pause()
         time.sleep(5)
@@ -84,23 +88,36 @@ def main():
 
         return {}
 
+    async def playlocal(data):
+        url = manager.host_file(data['file_id'], data['audio_stream_index'])
+
+        return { 'url': url }
+
+
     server = Server()
 
     ccdiscovery = server.add_noticeboard('ccdiscovery', list())
     listfiles = server.add_noticeboard('listfiles', dict())
+
     server.add_method('playfile', playfile)
+    server.add_method('playlocal', playlocal)
 
     loop = asyncio.get_event_loop()
 
-    manager = MediaManager(args.media, listfiles, loop)
+    media_server = ConversionServer(hostname=args.hostname, port=args.media_port)
+    manager = MediaManager(args.media, listfiles, loop, server=media_server)
     manager.start()
 
     discover_chromecasts(ccdiscovery, loop)
 
     try:
-        task = http.run(server, hostname=args.hostname, port=args.port, static=args.static)
-        loop.run_until_complete(task)
+        task1 = http.run(server, hostname=args.hostname, port=args.port, static=args.static)
+        task2 = media_server.start()
+
+        loop.run_until_complete(task1)
+        loop.run_until_complete(task2)
         loop.run_forever()
+
     except KeyboardInterrupt:
         sys.exit(0)
 
