@@ -4,15 +4,16 @@ import asyncio
 import os
 import pychromecast
 import pychromecast.discovery
+import signal
 import sys
 import time
 import uuid
 import websockets
 
 from .conversion import ConversionServer
+from .http import HTTPServer
 from .media import MediaManager
 from .rpc import Noticeboard, Server
-from . import http
 
 chromecasts_obj = dict()
 
@@ -43,14 +44,12 @@ def discover_chromecasts(noticeboard, loop):
 
     listener, browser = pychromecast.discovery.start_discovery(add_chromecast, remove_chromecast)
 
+    def stop_discovery():
+        pychromecast.discovery.stop_discovery(browser)
 
-#    elif method == "device.status":
-#        device_uuid = uuid.UUID(data)
-#
-#        chromecast = next(cc for cc in chromecasts.values() if cc.device.uuid == device_uuid)
-#        chromecast.wait()
-#        # print(chromecast.status)
-#        return [chromecast.status.display_name, chromecast.status.icon_url]
+    return stop_discovery
+
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -94,6 +93,22 @@ def main():
         return { 'url': url }
 
 
+    def shutdown(loop):
+        stop_discovery()
+        manager.stop()
+
+        loop.run_until_complete(http_server.stop())
+        loop.run_until_complete(media_server.stop())
+
+        loop.stop()
+
+        sys.exit(0)
+
+
+    loop = asyncio.get_event_loop()
+    # loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(shutdown(loop)))
+
+
     server = Server()
 
     ccdiscovery = server.add_noticeboard('ccdiscovery', list())
@@ -102,22 +117,20 @@ def main():
     server.add_method('playfile', playfile)
     server.add_method('playlocal', playlocal)
 
-    loop = asyncio.get_event_loop()
-
+    http_server = HTTPServer(server, hostname=args.hostname, port=args.port, static_dir=args.static)
     media_server = ConversionServer(hostname=args.hostname, port=args.media_port)
+
     manager = MediaManager(args.media, listfiles, loop, server=media_server)
     manager.start()
 
-    discover_chromecasts(ccdiscovery, loop)
+    stop_discovery = discover_chromecasts(ccdiscovery, loop)
+
+
+    loop.run_until_complete(http_server.start())
+    loop.run_until_complete(media_server.start())
 
     try:
-        task1 = http.run(server, hostname=args.hostname, port=args.port, static=args.static)
-        task2 = media_server.start()
-
-        loop.run_until_complete(task1)
-        loop.run_until_complete(task2)
         loop.run_forever()
-
     except KeyboardInterrupt:
-        sys.exit(0)
+        shutdown(loop)
 

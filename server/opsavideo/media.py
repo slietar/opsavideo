@@ -262,6 +262,7 @@ class Watcher:
 
     def stop(self):
         self.observer.stop()
+        self.observer.join()
 
     def add_file(self, filepath):
         if self.matches_patterns(filepath):

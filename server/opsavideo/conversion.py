@@ -158,6 +158,7 @@ class FileConversionController:
                 'number': conv_number,
                 'last_active_time': None,
                 'process': process,
+                'thread': threading.current_thread(),
                 'time': start_chunk_index
             }
 
@@ -236,25 +237,9 @@ class FileConversionController:
             self.remove_clients_chunk(chunk_index)
 
             if chunk_index in self.chunk_requests:
-                """
-                try:
-                    loop = asyncio.get_running_loop()
-                except Exception:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                """
-
                 self.chunk_requests[chunk_index].set()
-                # loop.call_soon_threadsafe(self.chunk_requests[chunk_index].set)
 
         conv['time'] += len(chunks)
-
-        """
-        if self.should_drop_conversion(conv):
-            LOG.info("[#%d] Dropping conversion due to lack of clients")
-            self.stop_conv(conv)
-            return False
-        """
 
         return True
 
@@ -316,6 +301,11 @@ class FileConversionController:
 
         return playlist
 
+    def stop(self):
+        for conv in self.conversions:
+            self.stop_conv(conv)
+            conv['thread'].join()
+
 
 
 class ConversionServer:
@@ -324,6 +314,7 @@ class ConversionServer:
         self.port = port
 
         self.files = dict()
+        self.site = None
 
     async def start(self):
         async def route_playlist(request):
@@ -373,8 +364,27 @@ class ConversionServer:
 
         LOG.info("Listening on http://%s:%d", self.hostname, self.port)
 
-        site = web.TCPSite(runner, self.hostname, self.port)
-        await site.start()
+        if self.site:
+            raise Exception("Site already running")
+
+        self.site = web.TCPSite(runner, self.hostname, self.port)
+        await self.site.start()
+
+    async def stop(self):
+        LOG.info("Stopping conversion server")
+
+        if self.site:
+            await self.site.stop()
+
+        coroutines = list()
+
+        for controllers in self.files.values():
+            for controller in controllers.values():
+                coroutines.append(controller.stop())
+
+        await asyncio.gather(*coroutines)
+
+        LOG.info("Stopped conversion server")
 
     def add_item(self, file_id, filepath, duration, audio_channel):
         LOG.info("Requesting conversion setup for file %s and audio channel %d", file_id, audio_channel)
