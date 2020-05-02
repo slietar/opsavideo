@@ -12,13 +12,16 @@ from .http import request
 LOG = logging.getLogger("opsavideo.imdb")
 class IMDBDatabase:
     def __init__(self, dir_path, version):
-        self.cache_path = os.path.join(dir_path, "imdb_cache.json")
+        self.cache_path = dir_path and os.path.join(dir_path, "imdb_cache.json")
         self.medias = dict()
         self.queries = dict()
         self.version = version
 
     def load_cache(self):
         try:
+            if self.cache_path is None:
+                raise Exception("No cache path")
+
             with open(self.cache_path, 'r') as file:
                 data = json.load(file)
 
@@ -36,6 +39,9 @@ class IMDBDatabase:
             return False
 
     def save_cache(self):
+        if self.cache_path is None:
+            return
+
         with open(self.cache_path, 'w') as file:
             json.dump({
                 'data': {

@@ -60,6 +60,7 @@ def main():
     parser.add_argument("--media", type=str, default="tmp")
     parser.add_argument("--media-prefix", type=str, default="/media")
     parser.add_argument("--media-url", type=str)
+    parser.add_argument("--state-dir", type=str)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -115,7 +116,7 @@ def main():
 
     http_server = HTTPServer(server, media_server, hostname=args.hostname, port=args.port, media_prefix=args.media_prefix, static_dir=args.static)
 
-    manager = MediaManager(args.media, listfiles, loop, server=media_server)
+    manager = MediaManager(args.media, listfiles, loop, server=media_server, state_dir=args.state_dir)
     manager.start()
 
     stop_discovery = discover_chromecasts(ccdiscovery, loop)

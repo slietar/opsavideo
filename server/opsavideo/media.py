@@ -17,14 +17,14 @@ from .imdb import IMDBDatabase
 
 LOG = logging.getLogger('opsavideo.media')
 class MediaManager:
-    def __init__(self, path, noticeboard, loop, server):
+    def __init__(self, path, noticeboard, loop, server, *, state_dir):
         self.obsever = None
         self.noticeboard = noticeboard
         self.loop = loop
         self.path = path
         self.server = server
 
-        self.imdb = IMDBDatabase(path, version="0")
+        self.imdb = IMDBDatabase(state_dir, version="0")
 
         self.files = dict()
         self.medias = dict()
