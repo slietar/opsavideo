@@ -10,7 +10,7 @@ import time
 import uuid
 import websockets
 
-from .conversion import ConversionServer
+from .conversion import MediaServer
 from .http import HTTPServer
 from .media import MediaManager
 from .rpc import Noticeboard, Server
@@ -58,7 +58,8 @@ def main():
     parser.add_argument("--static", type=str, default=None)
     parser.add_argument("--no-static", action='store_const', const=None, dest="static")
     parser.add_argument("--media", type=str, default="tmp")
-    parser.add_argument("--media-port", type=int, default=8060)
+    parser.add_argument("--media-prefix", type=str, default="/media")
+    parser.add_argument("--media-url", type=str)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -69,12 +70,7 @@ def main():
         chromecast.wait()
         mc = chromecast.media_controller
 
-        url = manager.host_file(data['file_id'])
-
-        print("File -->", url)
-
-        if url is None:
-            return {}
+        url = os.path.join(args.media_url + args.media_prefix, manager.host_file(data['file_id']))
 
         mc.play_media(url, "video/mp4", stream_type="LIVE")
         mc.block_until_active()
@@ -88,17 +84,16 @@ def main():
         return {}
 
     async def playlocal(data):
-        url = manager.host_file(data['file_id'], data['audio_stream_index'])
+        url = os.path.join(args.media_url + args.media_prefix, manager.host_file(data['file_id'], data['audio_stream_index']))
 
         return { 'url': url }
 
 
     def shutdown(loop):
+        loop.run_until_complete(http_server.stop())
         stop_discovery()
         manager.stop()
-
-        loop.run_until_complete(http_server.stop())
-        loop.run_until_complete(media_server.stop())
+        media_server.stop()
 
         loop.stop()
 
@@ -110,6 +105,7 @@ def main():
 
 
     server = Server()
+    media_server = MediaServer()
 
     ccdiscovery = server.add_noticeboard('ccdiscovery', list())
     listfiles = server.add_noticeboard('listfiles', dict())
@@ -117,8 +113,7 @@ def main():
     server.add_method('playfile', playfile)
     server.add_method('playlocal', playlocal)
 
-    http_server = HTTPServer(server, hostname=args.hostname, port=args.port, static_dir=args.static)
-    media_server = ConversionServer(hostname=args.hostname, port=args.media_port)
+    http_server = HTTPServer(server, media_server, hostname=args.hostname, port=args.port, media_prefix=args.media_prefix, static_dir=args.static)
 
     manager = MediaManager(args.media, listfiles, loop, server=media_server)
     manager.start()
@@ -127,7 +122,6 @@ def main():
 
 
     loop.run_until_complete(http_server.start())
-    loop.run_until_complete(media_server.start())
 
     try:
         loop.run_forever()

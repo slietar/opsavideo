@@ -10,10 +10,13 @@ from .rpc import Server
 
 LOG = logging.getLogger('opsavideo.http')
 class HTTPServer:
-    def __init__(self, server, *, hostname, port, static_dir):
+    def __init__(self, server, media_server, *, hostname, port, media_prefix, static_dir):
         self.server = server
+        self.media_server = media_server
+
         self.hostname = hostname
         self.port = port
+        self.media_prefix = media_prefix
         self.static_dir = static_dir
 
         self._connections = weakref.WeakSet()
@@ -47,6 +50,8 @@ class HTTPServer:
 
     async def start(self):
         app = web.Application()
+
+        app.add_subapp(self.media_prefix, self.media_server.create_app())
         app.router.add_get("/ws", self._ws_handler)
 
         if self.static_dir:

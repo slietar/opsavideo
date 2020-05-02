@@ -3,6 +3,7 @@ import asyncio
 import logging
 import math
 import os
+import random
 import subprocess
 import tempfile
 import time
@@ -291,11 +292,11 @@ class FileConversionController:
             file.seek(chunk_offset)
             return file.read(chunk_size)
 
-    def generate_playlist(self, *, path_prefix):
+    def generate_playlist(self):
         playlist = f"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:{self.options['chunk_duration']}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:EVENT\n"
 
         for chunk_index, chunk in enumerate(self.chunks):
-            playlist += f"#EXTINF:{self.options['chunk_duration']},\n{path_prefix}{chunk_index}.ts\n#EXT-X-DISCONTINUITY\n"
+            playlist += f"#EXTINF:{self.options['chunk_duration']},\nchunk/{chunk_index}.ts\n#EXT-X-DISCONTINUITY\n"
 
         playlist += "#EXT-X-ENDLIST\n"
 
@@ -308,23 +309,22 @@ class FileConversionController:
 
 
 
-class ConversionServer:
-    def __init__(self, *, hostname, port):
-        self.hostname = hostname
-        self.port = port
-
+class MediaServer:
+    def __init__(self):
+        self.controllers = dict()
+        self.clients = dict()
         self.files = dict()
-        self.site = None
 
-    async def start(self):
+    def create_app(self):
         async def route_playlist(request):
-            file_id = request.match_info.get('file_id')
-            audio_channel = int(request.match_info.get('audio_channel'))
+            token = request.match_info.get('token')
+            client = self.clients.get(token)
 
-            if (not file_id in self.files) or (not audio_channel in self.files[file_id]):
-                raise web.HTTPNotFound()
+            if client is None:
+                raise web.HTTPBadRequest()
 
-            playlist = self.files[file_id][audio_channel].generate_playlist(path_prefix=f"/{file_id}/{audio_channel}/chunk/")
+            controller = self.controllers[client['controller_id']]
+            playlist = controller.generate_playlist()
 
             return web.Response(text=playlist, headers={
                 "Access-Control-Allow-Origin": "*",
@@ -332,16 +332,16 @@ class ConversionServer:
             })
 
         async def route_chunk(request):
-            file_id = request.match_info.get('file_id')
-            audio_channel = int(request.match_info.get('audio_channel'))
+            token = request.match_info.get('token')
+            client = self.clients.get(token)
 
-            if (not file_id in self.files) or (not audio_channel in self.files[file_id]):
-                raise web.HTTPNotFound()
+            if client is None:
+                raise web.HTTPBadRequest()
+
+            controller = self.controllers[client['controller_id']]
 
             chunk_index = int(request.match_info.get('chunk_index'))
-            client_id = hex(abs(hash(request.remote)))
-
-            chunk_buffer = await self.files[file_id][audio_channel].get_chunk(client_id, chunk_index)
+            chunk_buffer = await controller.get_chunk(token, chunk_index)
 
             if chunk_buffer is None:
                 raise web.HTTPBadRequest()
@@ -355,52 +355,44 @@ class ConversionServer:
         app = web.Application()
 
         app.add_routes([
-            web.get('/{file_id}/{audio_channel}/playlist.m3u8', route_playlist),
-            web.get('/{file_id}/{audio_channel}/chunk/{chunk_index}.ts', route_chunk)
+            web.get('/{token}/playlist.m3u8', route_playlist),
+            web.get('/{token}/chunk/{chunk_index}.ts', route_chunk)
         ])
 
-        runner = web.AppRunner(app, access_log_format='%a %t "%r" %s %b')
-        await runner.setup()
+        return app
 
-        LOG.info("Listening on http://%s:%d", self.hostname, self.port)
+    def stop(self):
+        LOG.info("Stopping media server")
 
-        if self.site:
-            raise Exception("Site already running")
+        for controller in self.controllers.values():
+            controller.stop()
 
-        self.site = web.TCPSite(runner, self.hostname, self.port)
-        await self.site.start()
+        LOG.info("Stopped media server")
 
-    async def stop(self):
-        LOG.info("Stopping conversion server")
-
-        if self.site:
-            await self.site.stop()
-
-        coroutines = list()
-
-        for controllers in self.files.values():
-            for controller in controllers.values():
-                coroutines.append(controller.stop())
-
-        await asyncio.gather(*coroutines)
-
-        LOG.info("Stopped conversion server")
 
     def add_item(self, file_id, filepath, duration, audio_channel):
-        LOG.info("Requesting conversion setup for file %s and audio channel %d", file_id, audio_channel)
+        controller_id = "%x" % abs(hash((file_id, audio_channel)))
+        token = "%x" % random.randrange(16 ** 16)
 
-        if not file_id in self.files:
-            self.files[file_id] = dict()
+        LOG.info("Requesting conversion setup for file %s and audio channel %d, controller %s, token %s", file_id, audio_channel, controller_id, token)
 
-        if not audio_channel in self.files[file_id]:
-            self.files[file_id][audio_channel] = FileConversionController(filepath, duration, audio_channel)
+        self.clients[token] = {
+            'controller_id': controller_id
+        }
 
-        return f"http://{self.hostname}:{self.port}/{file_id}/{audio_channel}/playlist.m3u8"
+        if not controller_id in self.controllers:
+            self.controllers[controller_id] = FileConversionController(filepath, duration, audio_channel)
+            if not file_id in self.files:
+                self.files[file_id] = list()
+
+            self.files[file_id].append(controller_id)
+
+        return f"{token}/playlist.m3u8"
 
     def discard_file(self, file_id):
         if file_id in self.files:
-            for controller in self.files[file_id].values():
-                # controller.stop()
+            for controller_id in self.files[file_id]:
+                # self.controllers[controller_id].stop()
                 pass
 
             del self.files[file_id]
