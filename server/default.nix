@@ -1,4 +1,4 @@
-{ ffmpeg_4, python37Packages }:
+{ ffmpeg_4, python37Packages, lib }:
 python37Packages.buildPythonApplication {
   pname = "opsavideo";
   version = "0.0.1";
@@ -11,7 +11,9 @@ python37Packages.buildPythonApplication {
     watchdog
     websockets
   ]);
-  buildInputs = [ ffmpeg_4 ];
-  nativeBuildInputs = [ ffmpeg_4 ];
+
   doCheck = false;
+  makeWrapperArgs = [
+    "--prefix" "PATH" ":" "${lib.makeBinPath [ ffmpeg_4 ]}"
+  ];
 }
