@@ -9,7 +9,7 @@
 import { Fragment, createElement, getReferences } from '@slietar/jsx-dom';
 
 import ServerIO from './server-io.js';
-import { WindowDevice } from './device.jsx';
+// import { WindowDevice } from './device.jsx';
 import { WindowLibrary } from './library.jsx';
 import { WindowPlayer } from './player.jsx';
 import * as util from './util.js';
@@ -54,7 +54,7 @@ class Application {
 
     this.windows = [
       { Class: WindowLibrary, mount: '/library', name: 'Library', visible: true },
-      { Class: WindowDevice, mount: '/device', name: 'Device', visible: true },
+      // { Class: WindowDevice, mount: '/device', name: 'Device', visible: true },
       { Class: WindowPlayer, mount: '/player', name: 'Player', visible: false }
     ].map((win) => ({ ...win, context: null, instance: null }));
 
