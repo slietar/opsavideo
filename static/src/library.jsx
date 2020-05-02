@@ -111,8 +111,8 @@ export class WindowLibrary {
       );
     } else {
       contents = (
-      );
         <button onclick={() => { this.playFile(Object.keys(media.files)[0]); }}>Play</button>
+      );
     }
 
     return (
