@@ -8,11 +8,125 @@
 
     position: relative;
 
+    &._overlayhidden {
+      cursor: none;
+
+      .player-pauseoverlay {
+        opacity: 0;
+        visibility: hidden;
+
+        transition: opacity 300ms, visibility 0s 300ms;
+      }
+    }
+
     video {
       width: 100%;
       height: 100%;
 
       background-color: #000;
+    }
+
+
+    &-pauseoverlay {
+      width: 100%;
+      height: 100%;
+
+      position: absolute;
+      left: 0;
+      top: 0;
+
+      transition: opacity 300ms;
+    }
+
+    &-settings {
+      position: absolute;
+      right: 5vw;
+      top: 0.9rem;
+
+      & > li {
+        display: inline-block;
+        position: relative;
+
+        &:not(:last-of-type) {
+          margin-right: 1.5rem;
+        }
+
+        &._opened .player-settings-options {
+          opacity: 1;
+          visibility: visible;
+          transition: visibility 0s 0s, opacity 300ms;
+        }
+
+        & > button {
+          padding: 0;
+
+          background: none;
+          border: none;
+
+          color: #ddd;
+          font-size: 1.2rem;
+          font-weight: 600;
+
+          transition: color 300ms;
+        }
+
+        &._opened > button, & > button:hover {
+          color: #fff;
+        }
+      }
+
+      &-options {
+        @include arrow-side(top, calc(100% - 1.3rem), #fff, transparent);
+
+        position: absolute;
+        top: 2.3rem;
+        right: calc(50% - 1.4rem);
+
+        width: max-content;
+        min-width: 200px;
+        padding: 0.4rem 0;
+
+        opacity: 0;
+        visibility: hidden;
+        transition: visibility 0s 150ms, opacity 150ms;
+
+        background-color: #fff;
+        box-shadow: 2px 2px 4px rgba(#000, 0.2);
+
+        border: 1px solid transparent;
+        border-radius: 3px;
+
+        button {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          column-gap: 1rem;
+
+          padding: 0.5em 0.85em;
+
+          background: none;
+          border: 0;
+
+          font-size: 0.95rem;
+          font-weight: 500;
+
+          &:hover {
+            background: #eee;
+          }
+
+          svg {
+            width: 20px;
+            height: 20px;
+
+            fill: none;
+            stroke: #000;
+            stroke-width: 13px;
+          }
+        }
+
+        li:not(._selected) svg {
+          display: none;
+        }
+      }
     }
 
 
@@ -107,12 +221,6 @@
 
         transition: fill 200ms;
       }
-    }
-
-    &._controllable .player-controls {
-      opacity: 1;
-      visibility: visible;
-      transition: visibility 0s 0s, opacity 300ms;
     }
 
 

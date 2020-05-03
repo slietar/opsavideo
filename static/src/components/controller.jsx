@@ -241,7 +241,6 @@ export class Controller {
 
           }} >
             <span class="controller-bar-all"></span>
-            <span class="controller-bar-buffered"></span>
             <span class="controller-bar-played" ref="ctrlBarPlayed"></span>
             <div class="controller-bar-cursor" ref="ctrlBarCursor"></div>
             <div ref="ctrlBarBufferedItems"></div>

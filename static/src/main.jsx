@@ -120,7 +120,6 @@ class Application {
       this.refs.deviceData.self.classList.remove('dropdown-active');
     }, true /* inherit listener */);
 
-
     window.addEventListener('popstate', () => {
       this.route();
     });
@@ -136,6 +135,10 @@ class Application {
   redirect(path, state = {}) {
     history.replaceState(state, '', '#' + path);
     return this.route(path);
+  }
+
+  redirectNotFound() {
+    return this.redirect(this.windows[0].mount);
   }
 
   setState(state) {
@@ -156,7 +159,7 @@ class Application {
       }
     }
 
-    return this.redirect(this.windows[0].mount);
+    return this.redirectNotFound();
   }
 
   selectDevice(uuid) {

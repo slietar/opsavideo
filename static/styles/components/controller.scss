@@ -112,6 +112,19 @@ $control-cursor-shadow: 1px 1px 1px rgba(#000, 0.3);
     }
   }
 
+  &-volume svg {
+    position: relative;
+
+    &:nth-of-type(2) {
+      left: -2px;
+    }
+
+    &:nth-of-type(3) {
+      left: -4px;
+    }
+  }
+
+
 
   &-secdirection {
     display: flex;

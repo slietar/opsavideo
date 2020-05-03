@@ -38,6 +38,15 @@ export function humanSize(bytes, precision) {
 }
 
 
+export function listen(element, eventType, listener) {
+  element.addEventListener(eventType, listener);
+
+  return () => {
+    element.removeEventListener(eventType, listener);
+  };
+}
+
+
 export function replaceElement(oldElement, newElement) {
   return oldElement.parentElement(newElement, oldElement);
 }

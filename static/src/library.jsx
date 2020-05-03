@@ -110,9 +110,10 @@ export class WindowLibrary {
         </div>
       );
     } else {
-      contents = (
+      contents = <>
         <button onclick={() => { this.playFile(Object.keys(media.files)[0]); }}>Play</button>
-      );
+        <button onclick={() => { this.app.redirect('/player', { mediaId: media.id }); }}>Play on this device</button>
+      </>;
     }
 
     return (
