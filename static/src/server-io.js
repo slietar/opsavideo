@@ -44,7 +44,7 @@ export default class ServerIO {
         this.connect();
       });
 
-    console.log('%c SERVER ' + '%c Connected', 'background-color: #0074d9; color: #fff', '');
+      console.log('%c SERVER ' + '%c Connected', 'background-color: #0074d9; color: #fff', '');
       this.updateSocket(socket);
       deferred.resolve();
     });
@@ -110,11 +110,12 @@ export default class ServerIO {
 
       if (kind === 1) { // response
         let [index, data] = payload;
-        this.requests[index].callback(data);
 
+        this.requests[index].callback(data);
         delete this.requests[index];
       } else if (kind === 4) { // sub message
         let [index, data] = payload;
+
         this.subscriptions[index].callback(data);
       }
     });

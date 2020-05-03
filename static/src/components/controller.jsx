@@ -16,7 +16,6 @@ export class Controller {
     this._oldVolume = null;
     this._timeout = null;
 
-    this.mouseInside = false;
     this.seeking = false;
   }
 
@@ -82,63 +81,10 @@ export class Controller {
     this.refs.ctrlVolumeRange.self.value = value * 100;
   }
 
-  _updateTimeout() {
-    let options = this.options.visibilityWatcher;
-
-    if (this._timeout !== null) {
-      clearTimeout(this._timeout);
-      this._timeout = null;
-    }
-
-    let delay = this.mouseInside
-      ? options.delayInside || Infinity
-      : options.delayOutside;
-
-    if (delay !== Infinity) {
-      this._timeout = setTimeout(() => {
-        options.elementOutside.classList.add('_nocursor');
-        this.hidden = true;
-      }, delay);
-    }
-  }
-
-
-  installVisibilityWatcher(opts) {
-    if (opts) {
-      this.options.visibilityWatcher = opts;
-    }
-
-    this._updateTimeout();
-
-    let element = this.options.visibilityWatcher.elementOutside;
-    let listener = () => {
-      element.classList.remove('_nocursor');
-      this.hidden = false;
-      this._updateTimeout();
-    };
-
-    element.addEventListener('mousemove', listener);
-
-    return () => {
-      element.removeEventListener('mousemove', listener);
-    };
-  }
 
   render() {
     let tree = (
-      <div id="controller" class={'controller' + (this.options.dark ? ' _dark' : '')} onmouseenter={() => {
-        this.mouseInside = true;
-
-        if (this.options.visibilityWatcher) {
-          this._updateTimeout();
-        }
-      }} onmouseleave={() => {
-        this.mouseInside = false;
-
-        if (this.options.visibilityWatcher) {
-          this._updateTimeout();
-        }
-      }}>
+      <div id="controller" class={'controller' + (this.options.dark ? ' _dark' : '')}>
 
         <div class="controller-settings">
           <div class="controller-secvolume">
