@@ -63,7 +63,7 @@ def main():
     parser.add_argument("--state-dir", type=str)
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     async def playfile(data):
         chromecast = chromecasts_obj[uuid.UUID(data['chromecast_uuid'])]
@@ -108,11 +108,33 @@ def main():
     server = Server()
     media_server = MediaServer()
 
-    ccdiscovery = server.add_noticeboard('ccdiscovery', list())
-    listfiles = server.add_noticeboard('listfiles', dict())
+    ccdiscovery = Noticeboard(list())
+    listfiles = Noticeboard(dict())
 
     server.add_method('playfile', playfile)
     server.add_method('playlocal', playlocal)
+
+
+    async def subscribe(data):
+        if data['name'] == 'ccdiscovery':
+            return ccdiscovery
+        if data['name'] == 'listfiles':
+            return listfiles
+
+    async def unsubscribe(data):
+        # TODO: improve this
+        return data['index']
+
+    server.add_method('subscribe', subscribe)
+    server.add_method('unsubscribe', unsubscribe)
+
+
+    async def clear(data):
+        await listfiles.clear()
+        return {}
+
+    server.add_method('clear', clear)
+
 
     http_server = HTTPServer(server, media_server, hostname=args.hostname, port=args.port, media_prefix=args.media_prefix, static_dir=args.static)
 

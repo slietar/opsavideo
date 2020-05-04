@@ -1,25 +1,11 @@
 import * as util from './util.js';
 
-/*
- * ServerIO
- *
- * Message format
- *  - message type
- *     0: request,
- *     1: response,
- *     2: subscription request,
- *     3: subscription end,
- *     4: subscription message
- *  - index
- *  - method (if request or subscription request)
- *  - data (except subscription end)
- *
- */
+
 export default class ServerIO {
   constructor() {
     this._socket = null;
 
-    this.index = 0;
+    this.next_index = 0;
 
     this.requests = {};
     this.subscriptions = {};
@@ -67,56 +53,141 @@ export default class ServerIO {
 
   request(method, data = {}) {
     let deferred = util.defer();
-    let index = ++this.index;
+    let index = this.next_index++;
+    let req = { data, deferred, method };
 
-    let callback = (data) => {
-      deferred.resolve(data);
-      delete this.requests[index];
+    this.requests[index] = req;
+
+    console.log('Sending', {
+      kind: 'request',
+      index,
+      method,
+      data
+    });
+
+    this._socket.send(JSON.stringify({
+      kind: 'request',
+      index,
+      method,
+      data
+    }));
+
+    let result = {
+      cancel() {
+        result.cancel = async () => {
+          throw new Error('Already canceled');
+        };
+
+        if (!req.deferred) {
+          throw new Error('Already completed');
+        }
+
+        req.deferred.reject(new Error('Canceled'));
+        req.deferred = null;
+      },
+      promise: req.deferred.promise
     };
 
-    this.requests[index] = {
-      callback,
-      data,
-      method
-    };
-
-    this._socket.send(JSON.stringify([0, index, method, data]));
-
-    return deferred.promise;
+    return result;
   }
 
-  subscribe(method, data = {}, callback) {
-    let index = ++this.index;
+  subscribe(data, handlers) {
+    if (typeof data === 'string') {
+      data = { name: data };
+    }
 
-    this.subscriptions[index] = {
-      callback,
-      data,
-      method
+    if (typeof handlers === 'function') {
+      handlers = {
+        update: handlers,
+        remove() {
+          console.warn('A subscription removal was ignored.');
+        }
+      };
+    }
+
+
+    let { cancel, promise } = this.request('subscribe', data);
+
+    let result = {
+      cancel: async () => {
+        await cancel();
+      },
+
+      promise: (async () => {
+        let { index } = await promise;
+
+        let deferred = util.defer();
+        let sub = { data, deferred, handlers };
+
+        this.subscriptions[index] = sub;
+
+        result.cancel = async () => {
+          if (sub.deferred) {
+            sub.deferred.reject(new Error('Canceled'));
+            sub.deferred = null;
+          }
+
+          this.subscriptions[index] = null;
+
+          await this.request('unsubscribe', { index });
+          delete this.subscriptions[index];
+        };
+
+        return await sub.deferred.promise;
+      })()
     };
 
-    this._socket.send(JSON.stringify([2, index, method, data]));
-
-    return () => {
-      this._socket.send(JSON.stringify([3, index]));
-      delete this.subscriptions[index];
-    };
+    return result;
   }
 
   updateSocket(socket) {
     this._socket = socket;
 
     this._socket.addEventListener('message', (event) => {
-      let [kind, ...payload] = JSON.parse(event.data);
+      let payload = JSON.parse(event.data);
+      console.log('Received', payload);
+      let { kind, index } = payload;
 
-      if (kind === 1) { // response
-        let [index, data] = payload;
+      switch (kind) {
+        case 'notification': {
+          let { data, type } = payload.data;
+          let sub = this.subscriptions[index];
 
-        this.requests[index].callback(data);
-        delete this.requests[index];
-      } else if (kind === 4) { // sub message
-        let [index, data] = payload;
+          if (sub !== null) {
+            switch (payload.data.type) {
+              case 'update':
+                sub.handlers.update(payload.data.data);
+                break;
 
-        this.subscriptions[index].callback(data);
+              case 'remove':
+                delete this.subscriptions[index];
+                sub.handlers.remove();
+                break;
+            }
+
+            if (sub.deferred) {
+              sub.deferred.resolve(payload.data.data);
+              sub.deferred = null;
+            }
+          }
+
+          break;
+        }
+
+        case 'response': {
+          let req = this.requests[index];
+
+          if (req.deferred) {
+            req.deferred.resolve(payload.data);
+            req.deferred = null;
+          }
+
+          delete this.requests[index];
+          break;
+        }
+
+        default:
+          console.warn(`Unknown message kind '${kind}'`);
       }
     });
 
@@ -126,14 +197,17 @@ export default class ServerIO {
       }
     });
 
-    for (let index in this.requests) {
-      let req = this.requests[index];
-      this._socket.send(JSON.stringify([0, index, req.method, req.data]));
+    for (let [index, req] of Object.entries(this.requests)) {
+      this.request(req.method, req.data)
+        .then(req.deferred.resolve)
+        .catch(req.deferred.reject);
+
+      delete this.requests[index];
     }
 
-    for (let index in this.subscriptions) {
-      let sub = this.subscriptions[index];
-      this._socket.send(JSON.stringify([2, index, sub.method, sub.data]));
+    for (let [subIndex, { data, sub }] of Object.entries(this.subscriptions)) {
+      this.subscribe(data, sub);
+      delete this.subscriptions[subIndex];
     }
   }
 }

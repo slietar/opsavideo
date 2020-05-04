@@ -25,15 +25,10 @@ export class WindowPlayer {
     this.hls = null;
     this.settings = null;
 
+    this.playRequest = null;
     this.removeFullscreenChangeListener = null;
-    this.stopSubscription = this.app.server.subscribe('listfiles', {}, (medias) => {
-      let isFirstMessage = this.medias === null;
-
+    this.subscription = this.app.server.subscribe('listfiles', (medias) => {
       this.medias = medias;
-
-      if (isFirstMessage) {
-        this.displayMain();
-      }
     });
   }
 
@@ -123,10 +118,16 @@ export class WindowPlayer {
     this.loading = true;
     this.paused = true;
 
-    this.app.server.request('playlocal', {
+    let request = this.app.server.request('playlocal', {
       audio_stream_index: parseInt(this.currentAudioStreamIndex),
       file_id: this.currentFileId
-    }).then(({ url }) => {
+    });
+
+    this.playRequest = request;
+
+    request.promise.then(({ url }) => {
+      this.playRequest = null;
+
       // Safari
       // this.refs.video = <><source src={url} type="video/mp4" /></>;
 
@@ -296,16 +297,20 @@ export class WindowPlayer {
     this.controller.hidden = true;
     this.loading = true;
 
-    if (this.medias) {
-      displayMain();
-    }
+    this.subscription.promise.then(() => {
+      this.displayMain();
+    });
   }
 
   unmount() {
     this.context.log('Unmount');
 
     this.removeFullscreenChangeListener();
-    this.stopSubscription();
+    this.subscription.cancel();
+
+    if (this.playRequest) {
+      this.playRequest.cancel();
+    }
   }
 }
 

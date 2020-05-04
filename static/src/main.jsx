@@ -95,14 +95,16 @@ class Application {
 
   async initialize() {
     this.server.onDisconnected = () => {
-      this.connect();
+      util.wait(500).then(() => {
+        this.connect();
+      });
     };
 
     await this.connect();
 
     document.body.appendChild(this.render());
 
-    this.server.subscribe('ccdiscovery', {}, (chromecasts) => {
+    this.server.subscribe('ccdiscovery', (chromecasts) => {
       // chromecasts = [['0', 'foo', 'bar'], ['1', 'baz', 'qux']];
 
       this.chromecasts = {};

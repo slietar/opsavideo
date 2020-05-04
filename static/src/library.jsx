@@ -20,14 +20,10 @@ export class WindowLibrary {
     this.currentMediaId = null;
     this.currentSeasonNumber = null;
 
-    this.onFirstMessageCallback = null;
-    this.stopSubscription = this.app.server.subscribe('listfiles', {}, (medias) => {
-      let isFirstMessage = this.medias === null;
+    this.subscription = this.app.server.subscribe('listfiles', (medias) => {
       this.medias = medias;
 
-      if (isFirstMessage && this.onFirstMessageCallback) {
-        this.onFirstMessageCallback();
-      } else if (this.currentMediaId) {
+      if (this.currentMediaId) {
         this.displayMedia();
       } else {
         this.displayMediaList();
@@ -178,26 +174,20 @@ export class WindowLibrary {
   }
 
   route(path, state) {
-    if (this.medias === null) {
-      this.onFirstMessageCallback = () => {
-        this.route(path, state);
-      };
-
-      return;
-    }
-
     this.context.log('Route ' + path);
 
-    if (path === '/') {
-      this.displayMediaList();
-    } else {
-      this.displayMedia(path.substring(1), state.seasonNumber);
-    }
+    this.subscription.promise.then(() => {
+      if (path === '/') {
+        this.displayMediaList();
+      } else {
+        this.displayMedia(path.substring(1), state.seasonNumber);
+      }
+    });
   }
 
   unmount() {
-    this.stopSubscription();
     this.context.log('Unmount');
+    this.subscription.cancel();
   }
 }
 

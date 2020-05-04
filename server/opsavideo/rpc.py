@@ -8,37 +8,38 @@ class Noticeboard:
         self._value = value
         self._subscriptions = dict()
 
-    async def publish(self, value):
-        self._value = value
-        for (client, index) in self._subscriptions.values():
-            await client(json.dumps([4, index, value]))
+    async def publish(self, value = None):
+        if value is not None:
+            self._value = value
 
-    async def __call__(self, value):
-        self.publish(value)
+        for (update, remove) in self._subscriptions.values():
+            await update(value)
 
     def publish_threadsafe(self, value, *, loop):
         asyncio.run_coroutine_threadsafe(self.publish(value), loop)
 
-    async def subscribe(self, sub_index, client, index):
-        self._subscriptions[sub_index] = (client, index)
-        await client(json.dumps([4, index, self._value]))
+    async def subscribe(self, sub_index, client):
+        (update, remove) = client
+
+        self._subscriptions[sub_index] = client
+        await update(self._value)
 
     def unsubscribe(self, sub_index):
         del self._subscriptions[sub_index]
 
+    async def clear(self):
+        for (update, remove) in self._subscriptions.values():
+            await remove()
+
+        self._subscriptions = dict()
+
 class Server:
     def __init__(self):
         self._methods = dict()
-        self._noticeboards = dict()
-        self._next_sub_index = 0
+        self._sub_index_next = 0
 
-    def add_noticeboard(self, name, value):
-        n = Noticeboard(value)
-        self._noticeboards[name] = n
-        return n
-
-    def add_method(self, name, f):
-        self._methods[name] = f
+    def add_method(self, name, handler):
+        self._methods[name] = handler
 
     async def __call__(self, remote, incoming, outgoing):
         """
@@ -47,44 +48,92 @@ class Server:
         outgoing is an asynchrounous function, used to send messages
         """
 
+        LOG.debug("Added client")
+
         subs = dict()
+
         try:
             async for msg in incoming:
                 payload = json.loads(msg)
-                kind = payload[0]
-                index = payload[1]
+                kind = payload['kind']
+                index = payload['index']
 
-                if kind == 0: # request
-                    method = payload[2]
-                    data = payload[3]
+                if kind == 'request':
+                    method = payload['method']
+                    data = payload['data']
 
                     result = await self._methods[method](data)
-                    response = [1, index, result]
 
-                    LOG.info('%s "REQ %s(%s)"', remote, method, data)
+                    if isinstance(result, Noticeboard):
+                        noticeboard = result
 
-                    await outgoing(json.dumps(response))
+                        sub_index = self._sub_index_next
+                        self._sub_index_next += 1
 
-                elif kind == 2: # subscribe
-                    method = payload[2]
-                    data = payload[3]
+                        subs[sub_index] = noticeboard
 
-                    sub_index = self._next_sub_index
-                    self._next_sub_index += 1
+                        async def notify(data):
+                            await outgoing(json.dumps({
+                                'kind': 'notification',
+                                'index': sub_index,
+                                'data': data
+                            }))
 
-                    LOG.info('%s "SUB %s(%s)" => %d', remote, method, data, sub_index)
+                        async def update(data):
+                            await notify({ 'type': 'update', 'data': data })
 
-                    nb = self._noticeboards[method]
-                    await nb.subscribe(sub_index, outgoing, index)
-                    subs[index] = (nb, sub_index)
+                        async def remove():
+                            del subs[sub_index]
+                            await notify({ 'type': 'remove' })
 
-                elif kind == 3: # unsubscribe
-                    (nb, sub_index) = subs[index]
-                    LOG.info('%s "UNSUB %d"', remote, sub_index)
-                    del subs[index]
-                    nb.unsubscribe(sub_index)
+                        LOG.debug("Subscribing client to noticeboard %s with subscription index %d, request index %d", result, sub_index, index)
 
+                        await outgoing(json.dumps({
+                            'kind': 'response',
+                            'index': index,
+                            'data': { 'index': sub_index }
+                        }))
+
+                        await noticeboard.subscribe(sub_index, (update, remove))
+
+                    elif isinstance(result, int):
+                        sub_index = result
+                        noticeboard = subs[sub_index]
+
+                        noticeboard.unsubscribe(sub_index)
+                        del subs[sub_index]
+
+                        LOG.debug("Unsubscribing client from noticeboard %s with subscription index %d, request index %d", noticeboard, sub_index, index)
+
+                        await outgoing(json.dumps({
+                            'kind': 'response',
+                            'index': index,
+                            'data': {}
+                        }))
+
+                    else:
+                        LOG.debug("Answering request of method %s, index %d", method, index)
+
+                        await outgoing(json.dumps({
+                            'kind': 'response',
+                            'index': index,
+                            'data': result
+                        }))
+
+                elif kind == 'response':
+                    LOG.warn("Ignoring response message")
+
+                else:
+                    raise Exception("Unknown message kind")
+
+        except Exception as err:
+            LOG.warn(f"Client disconnected with error '{err}'")
+
+            import traceback
+            traceback.print_exc()
         finally:
-            for (nb, sub_index) in subs.values():
-                nb.unsubscribe(sub_index)
+            # self._call_method('close', client)
+
+            for sub_index, noticeboard in subs.items():
+                noticeboard.unsubscribe(sub_index)
 
