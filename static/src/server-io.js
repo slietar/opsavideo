@@ -8,7 +8,8 @@ export default class ServerIO {
     this._requests = {};
     this._requestIndexNext = 0;
 
-    this.subscriptions = {};
+    this._subscriptions = new Set();
+    this._subscriptionsMap = new Map();
   }
 
   connect() {
@@ -52,6 +53,14 @@ export default class ServerIO {
     }
   }
 
+  /*
+   * Statuses:
+   *  - WAITING for socket (cancel -> CANCELED, updateSocket -> SENT)
+   *  - SENT (cancel -> CANCELING, removeSocket -> WAITING, response -> RETURNED)
+   *  - CANCELING (removeSocket -> CANCELED, response -> CANCELED)
+   *  - CANCELED
+   *  - RETURNED
+   */
   request(method, data = {}) {
     let deferred = util.defer();
     let index = this._requestIndexNext++;
@@ -68,7 +77,6 @@ export default class ServerIO {
     this._requests[index] = req;
 
     if (this._socket !== null) {
-      console.log('Sending 1', JSON.parse(raw));
       this._socket.send(raw);
     }
 
@@ -99,6 +107,15 @@ export default class ServerIO {
     };
   }
 
+  /*
+   * Statuses:
+   *  - WAITING for socket (cancel -> UNSUBSCRIBED, updateSocket -> SUBSCRIBING)
+   *  - SUBSCRIBING (cancel -> UNSUBSCRIBING SUBSCRIBING, removeSocket -> SUBSCRIBING, response -> SUBSCRIBED)
+   *  - SUBSCRIBED (cancel -> UNSUBSCRIBING, remooveSocket -> SUBSCRIBING)
+   *  - UNSUBSCRIBING (removeSocket -> UNSUBSCRIBED, response -> UNSUBSCRIBED)
+   *  - UNSUBSCRIBING SUBSCRIBING (removeSocket -> UNSUBSCRIBED, response -> UNSUBSCRIBING)
+   *  - UNSUBSCRIBED
+   */
   subscribe(data, handlers = () => {}) {
     if (typeof data === 'string') {
       data = { name: data };
@@ -114,49 +131,99 @@ export default class ServerIO {
     }
 
 
-    let { cancel, getResponse } = this.request('subscribe', data);
+    let readyDeferred = util.defer();
+    let readyPromise = readyDeferred.promise;
 
-    let sub = null;
-    let readyPromise = (async () => {
-      let { index } = await getResponse();
+    let sub = {
+      status: 'none',
 
-      sub = {
-        deferred: util.defer(),
-        handlers,
-        value: null
-      };
+      data: JSON.parse(JSON.stringify(data)),
+      index: null,
+      subscribeRequest: null,
+      unsubscribeRequest: null,
+      value: null,
 
-      this.subscriptions[index] = sub;
+      subscribe: async () => {
+        let request = this.request('subscribe', data);
 
-      result.cancel = async () => {
-        if (sub.deferred) {
-          sub.deferred.reject(new Error('Canceled'));
-          sub.deferred = null;
+        sub.status = 'subscribing';
+        sub.subscribeRequest  = request;
+
+        let index;
+
+        try {
+          index = (await request.getResponse()).index;
+        } catch (err) {
+          return;
         }
 
-        this.subscriptions[index] = null;
-        await this.request('unsubscribe', { index }).getResponse();
-        delete this.subscriptions[index];
-      };
+        this._subscriptionsMap.set(index, sub);
 
-      await sub.deferred.promise;
-    })();
+        sub.index = index;
+        sub.status = 'subscribed';
+        sub.subscribeRequest = null;
+      },
+      unsubscribe: async () => {
+        let request = this.request('unsubscribe', { index: sub.index });
 
-    let result = {
+        sub.status = 'unsubscribing';
+        sub.unsubscribeRequest = request;
+
+        try {
+          await request.getResponse();
+        } catch (err) {}
+
+        sub.status = 'unsubscribed';
+      },
+      unsubscribed: () => {
+        sub.status = 'unsubscribed';
+        handlers.remove();
+
+        this._subscriptions.delete(sub);
+      },
+      update: (value) => {
+        sub.value = value;
+        handlers.update(value);
+
+        if (readyDeferred) {
+          readyDeferred.resolve(value);
+        }
+      }
+    };
+
+    this._subscriptions.add(sub);
+    sub.subscribe();
+
+    return {
       cancel: async () => {
-        let response = await cancel();
-
-        if (response) {
-          let index = response.index;
-
-          this.subscriptions[index] = null;
-          await this.request('unsubscribe', { index }).getResponse();
-          delete this.subscriptions[index];
+        if (readyDeferred) {
+          readyDeferred.reject(new Error('Canceled'));
+          readyDeferred = null;
         }
+
+        if (sub.status === 'subscribing') {
+          let response = await sub.subscribeRequest.cancel();
+
+          if (response) {
+            sub.index = response.index;
+            await sub.unsubscribe();
+          } else {
+            sub.status = 'unsubscribed';
+          }
+        } else if (sub.status === 'subscribed') {
+          await sub.unsubscribe();
+        } else if (sub.status === 'waiting') {
+          sub.status = 'unsubscribed';
+        } else {
+          console.warn('The subscription was already canceled.');
+          return;
+        }
+
+        this._subscriptions.delete(sub);
       },
 
       get value() {
-        if (!sub || sub.value === null) {
+        if (sub.value === null) {
           throw new Error('Invalid data');
         }
 
@@ -165,16 +232,20 @@ export default class ServerIO {
 
       async wait() {
         await readyPromise;
-        return result.value;
+        return sub.value;
       }
     };
-
-    return result;
   }
 
 
   removeSocket() {
     this._socket = null;
+
+    for (let sub of this._subscriptions) {
+      if (sub.status === 'unsubscribing') {
+        sub.unsubscribeRequest.cancel();
+      }
+    }
 
     for (let [reqIndex, req] of Object.entries(this._requests)) {
       if (req.canceled) {
@@ -193,30 +264,22 @@ export default class ServerIO {
 
     this._socket.addEventListener('message', (event) => {
       let payload = JSON.parse(event.data);
-      console.log('Received', payload);
       let { kind, index } = payload;
 
       switch (kind) {
         case 'notification': {
           let { data, type } = payload.data;
-          let sub = this.subscriptions[index];
+          let sub = this._subscriptionsMap.get(index);
 
-          if (sub !== null) {
-            switch (payload.data.type) {
+          if (sub && sub.status === 'subscribed') {
+            switch (type) {
               case 'update':
-                sub.value = payload.data.data;
-                sub.handlers.update(sub.value);
+                sub.update(data);
                 break;
 
               case 'remove':
-                delete this.subscriptions[index];
-                sub.handlers.remove();
+                sub.unsubscribed();
                 break;
-            }
-
-            if (sub.deferred) {
-              sub.deferred.resolve();
-              sub.deferred = null;
             }
           }
 
@@ -243,8 +306,16 @@ export default class ServerIO {
     });
 
     for (let [reqIndex, req] of Object.entries(this._requests)) {
-      console.log('Sending 2', JSON.parse(raw));
       this._socket.send(req.raw);
+    }
+
+
+    this._subscriptionsMap.clear();
+
+    for (let sub of this._subscriptions) {
+      if (sub.status === 'subscribed') {
+        sub.subscribe();
+      }
     }
   }
 }
