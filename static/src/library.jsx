@@ -16,19 +16,20 @@ export class WindowLibrary {
     this.context = context;
     this.context.log('Instantiate');
 
-    this.medias = null;
     this.currentMediaId = null;
     this.currentSeasonNumber = null;
 
     this.subscription = this.app.server.subscribe('listfiles', (medias) => {
-      this.medias = medias;
-
       if (this.currentMediaId) {
         this.displayMedia();
       } else {
         this.displayMediaList();
       }
     });
+  }
+
+  get medias() {
+    return this.subscription.value;
   }
 
   playFile(fileId) {
@@ -176,7 +177,7 @@ export class WindowLibrary {
   route(path, state) {
     this.context.log('Route ' + path);
 
-    this.subscription.promise.then(() => {
+    this.subscription.wait().then(() => {
       if (path === '/') {
         this.displayMediaList();
       } else {

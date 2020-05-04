@@ -21,15 +21,16 @@ export class WindowPlayer {
     this.currentMedia = null;
     this.currentFileId = null;
     this.currentMediaId = null;
-    this.medias = null;
     this.hls = null;
     this.settings = null;
 
     this.playRequest = null;
     this.removeFullscreenChangeListener = null;
-    this.subscription = this.app.server.subscribe('listfiles', (medias) => {
-      this.medias = medias;
-    });
+    this.subscription = this.app.server.subscribe('listfiles');
+  }
+
+  get medias() {
+    return this.subscription.value;
   }
 
   set loading(value) {
@@ -125,7 +126,7 @@ export class WindowPlayer {
 
     this.playRequest = request;
 
-    request.promise.then(({ url }) => {
+    request.getResponse().then(({ url }) => {
       this.playRequest = null;
 
       // Safari
@@ -297,7 +298,7 @@ export class WindowPlayer {
     this.controller.hidden = true;
     this.loading = true;
 
-    this.subscription.promise.then(() => {
+    this.subscription.wait().then(() => {
       this.displayMain();
     });
   }
