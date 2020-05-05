@@ -40,7 +40,7 @@ export default class ServerIO {
     return deferred.promise;
   }
 
-  async connectRepeated(attemptsLeft = 5) {
+  async connectRepeated(attemptsLeft) {
     if (attemptsLeft === 1) {
       return await this.connect();
     }

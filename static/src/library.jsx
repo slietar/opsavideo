@@ -20,10 +20,12 @@ export class WindowLibrary {
     this.currentSeasonNumber = null;
 
     this.subscription = this.app.server.subscribe('listfiles', (medias) => {
-      if (this.currentMediaId) {
-        this.displayMedia();
-      } else {
-        this.displayMediaList();
+      if (this.refs) {
+        if (this.currentMediaId) {
+          this.displayMedia();
+        } else {
+          this.displayMediaList();
+        }
       }
     });
   }
@@ -109,7 +111,7 @@ export class WindowLibrary {
     } else {
       contents = <>
         <button onclick={() => { this.playFile(Object.keys(media.files)[0]); }}>Play</button>
-        <button onclick={() => { this.app.redirect('/player', { mediaId: media.id }); }}>Play on this device</button>
+        <button onclick={() => { this.app.pushQueue(() => this.app.open('/player', { mediaId: media.id })); }}>Play on this device</button>
       </>;
     }
 
@@ -174,21 +176,25 @@ export class WindowLibrary {
     });
   }
 
-  route(path, state) {
+
+  async route(path, state) {
     this.context.log('Route ' + path);
 
-    this.subscription.wait().then(() => {
-      if (path === '/') {
-        this.displayMediaList();
-      } else {
-        this.displayMedia(path.substring(1), state.seasonNumber);
-      }
-    });
+    if (path === '/') {
+      this.displayMediaList();
+    } else {
+      this.displayMedia(path.substring(1), state.seasonNumber);
+    }
   }
 
-  unmount() {
+
+  async mount() {
+    await this.subscription.wait();
+  }
+
+  async unmount() {
     this.context.log('Unmount');
-    this.subscription.cancel();
+    await this.subscription.cancel();
   }
 }
 

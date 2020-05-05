@@ -286,7 +286,8 @@ export class WindowPlayer {
     return tree.local.self;
   }
 
-  route(path, state) {
+
+  async route(path, state) {
     this.context.log('Route ' + path);
 
     if (path !== '/' || !state.mediaId) {
@@ -298,19 +299,20 @@ export class WindowPlayer {
     this.controller.hidden = true;
     this.loading = true;
 
-    this.subscription.wait().then(() => {
-      this.displayMain();
-    });
+    await this.subscription.wait();
+
+    this.displayMain();
   }
 
-  unmount() {
+
+  async unmount() {
     this.context.log('Unmount');
 
     this.removeFullscreenChangeListener();
-    this.subscription.cancel();
+    await this.subscription.cancel();
 
     if (this.playRequest) {
-      this.playRequest.cancel();
+      await this.playRequest.cancel();
     }
   }
 }

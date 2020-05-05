@@ -19,36 +19,14 @@ import '../styles/main.scss';
 import 'typeface-helvetica-now';
 
 
-class Overlay {
-  setLoading() {
-    this.refs.root = <><div class="overlay-spinner"><div></div><div></div><div></div><div></div></div></>;
-  }
-
-  setMessage(message, retryCallback) {
-    this.refs.root = <>
-      <p class="overlay-message">{message}{retryCallback ? [' ', <a href="#" onclick={(event) => {
-        event.preventDefault();
-        retryCallback();
-      }}>Retry</a>] : []}</p>
-    </>;
-  }
-
-  render() {
-    let tree = (
-      <div class="overlay" ref="root"></div>
-    );
-
-    this.refs = getReferences(tree);
-    return tree.local.self;
-  }
-}
-
 
 class Application {
   constructor() {
     this.chromecasts = {};
     this.currentChromecast = null;
     this.currentWindowIndex = null;
+
+    this._queue = Promise.resolve();
 
     this.server = new ServerIO();
 
@@ -58,39 +36,23 @@ class Application {
       { Class: WindowPlayer, mount: '/player', name: 'Player', visible: false }
     ].map((win) => ({ ...win, context: null, instance: null }));
 
-    this.overlay = new Overlay();
-
-    document.body.appendChild(this.overlay.render());
     document.body.appendChild(iconsElement);
   }
 
-  connect() {
-    document.body.classList.add('loading');
-    this.overlay.setLoading();
-
-    let deferred = util.defer();
-    let time = Date.now();
-
-    this.server.connectRepeated(2)
-      .then(async () => {
-        let waitTime = Date.now() - time;
-
-        if (waitTime < 500) {
-          await util.wait(500 - waitTime);
-        }
-
-        document.body.classList.remove('loading');
-        deferred.resolve();
-      })
+  pushQueue(handler) {
+    this._queue = this._queue
       .catch((err) => {
-        this.overlay.setMessage(err.message, () => {
-          this.connect().then(() => {
-            deferred.resolve();
-          });
-        });
-      });
+        console.error(err);
+      })
+      .then(() => handler());
+  }
 
-    return deferred.promise;
+
+  connect() {
+    this.server.connectRepeated(2)
+      .catch((err) => {
+        console.error('Could not connect: ' + err.message);
+      });
   }
 
   async initialize() {
@@ -100,7 +62,7 @@ class Application {
       });
     };
 
-    await this.connect();
+    this.connect();
 
     document.body.appendChild(this.render());
 
@@ -123,31 +85,32 @@ class Application {
     }, true /* inherit listener */);
 
     window.addEventListener('popstate', () => {
-      this.route();
+      let path = location.hash.slice(1);
+      this.pushQueue(() => this.route(path));
     });
 
-    this.route();
+    await this.route();
   }
 
-  open(path, state = {}) {
+  async open(path, state = {}) {
     history.pushState(state, '', '#' + path);
-    return this.route(path);
+    await this.route(path);
   }
 
-  redirect(path, state = {}) {
+  async redirect(path, state = {}) {
     history.replaceState(state, '', '#' + path);
-    return this.route(path);
+    await this.route(path);
   }
 
-  redirectNotFound() {
-    return this.redirect(this.windows[0].mount);
+  async redirectNotFound() {
+    await this.redirect(this.windows[0].mount);
   }
 
   setState(state) {
     history.replaceState(state, '');
   }
 
-  route(path = location.hash.slice(1), state = history.state || {}) {
+  async route(path = location.hash.slice(1), state = history.state || {}) {
     if (path.length < 1) {
       return this.redirect('/');
     }
@@ -156,12 +119,14 @@ class Application {
       let { mount } = this.windows[index];
 
       if (path.startsWith(mount)) {
-        this.updateWindow(index).route(path.slice(mount.length) || '/', state);
+        let instance = await this.updateWindow(index);
+        await instance.route(path.slice(mount.length) || '/', state);
+
         return;
       }
     }
 
-    return this.redirectNotFound();
+    await this.redirectNotFound();
   }
 
   selectDevice(uuid) {
@@ -244,7 +209,7 @@ class Application {
   }
 
 
-  updateWindow(index) {
+  async updateWindow(index) {
     let win = this.windows[index];
 
     if (this.currentWindowIndex === index) {
@@ -256,7 +221,7 @@ class Application {
 
       if (!oldWin.visible) {
         if (oldWin.instance.unmount) {
-          oldWin.instance.unmount();
+          await oldWin.instance.unmount();
         }
 
         oldWin.context = null;
@@ -271,12 +236,16 @@ class Application {
 
           console.log(`%c ${win.name.toUpperCase()} ` + `%c ${message}`, `background-color: ${Colors[index] || '#000'}; color: #fff`, '');
         },
-        open: (path) => {
-          this.open(win.mount + path);
+        open: async (path) => {
+          await this.open(win.mount + path);
         }
       };
 
       win.instance = new win.Class(this, win.context);
+
+      if (win.instance.mount) {
+        await win.instance.mount();
+      }
     }
 
     this.currentWindowIndex = index;
@@ -291,5 +260,5 @@ class Application {
 
 window.app = new Application();
 
-app.initialize();
+app.pushQueue(() => app.initialize());
 

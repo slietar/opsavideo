@@ -14,49 +14,6 @@ body {
 }
 
 
-// overlay loading
-
-body.loading {
-  overflow: hidden;
-
-  #app {
-    filter: blur(2px);
-  }
-}
-
-.overlay {
-  width: 100vw;
-  height: 100vh;
-
-  position: fixed;
-  z-index: 10;
-  background-color: rgba(#fff, 0.6);
-
-  text-align: center;
-
-  &-message, &-spinner {
-    margin-top: 45vh;
-  }
-
-  &-spinner {
-    @include spinner(#000);
-  }
-
-  a {
-    color: #0074d9;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
-  body:not(.loading) & {
-    display: none;
-  }
-}
-
-
-
 #app {
   --back-color: #eee;
   --front-color: #000;
