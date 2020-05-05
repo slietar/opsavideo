@@ -34,7 +34,9 @@ class Noticeboard:
         self._subscriptions = dict()
 
 class Server:
-    def __init__(self):
+    def __init__(self, *, subscribe):
+        self._subscribe = subscribe
+
         self._methods = dict()
         self._sub_index_next = 0
 
@@ -62,10 +64,11 @@ class Server:
                     method = payload['method']
                     data = payload['data']
 
-                    result = await self._methods[method](data)
+                    if method == 'subscribe':
+                        noticeboard = await self._subscribe(data)
 
-                    if isinstance(result, Noticeboard):
-                        noticeboard = result
+                        if not noticeboard:
+                            raise Exception("Subscription failed")
 
                         sub_index = self._sub_index_next
                         self._sub_index_next += 1
@@ -86,7 +89,7 @@ class Server:
                             del subs[sub_index]
                             await notify({ 'type': 'remove' })
 
-                        LOG.debug("Subscribing client to noticeboard %s with subscription index %d, request index %d", result, sub_index, index)
+                        LOG.debug("Subscribing client to noticeboard %s with subscription index %d, request index %d", noticeboard, sub_index, index)
 
                         await outgoing(json.dumps({
                             'kind': 'response',
@@ -96,8 +99,8 @@ class Server:
 
                         await noticeboard.subscribe(sub_index, (update, remove))
 
-                    elif isinstance(result, int):
-                        sub_index = result
+                    elif method == 'unsubscribe':
+                        sub_index = data['index']
                         noticeboard = subs[sub_index]
 
                         noticeboard.unsubscribe(sub_index)
@@ -112,6 +115,8 @@ class Server:
                         }))
 
                     else:
+                        result = await self._methods[method](data)
+
                         LOG.debug("Answering request of method %s, index %d", method, index)
 
                         await outgoing(json.dumps({

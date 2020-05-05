@@ -105,7 +105,13 @@ def main():
     # loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(shutdown(loop)))
 
 
-    server = Server()
+    async def subscribe(data):
+        if data['name'] == 'ccdiscovery':
+            return ccdiscovery
+        if data['name'] == 'listfiles':
+            return listfiles
+
+    server = Server(subscribe=subscribe)
     media_server = MediaServer()
 
     ccdiscovery = Noticeboard(list())
@@ -113,27 +119,6 @@ def main():
 
     server.add_method('playfile', playfile)
     server.add_method('playlocal', playlocal)
-
-
-    async def subscribe(data):
-        if data['name'] == 'ccdiscovery':
-            return ccdiscovery
-        if data['name'] == 'listfiles':
-            return listfiles
-
-    async def unsubscribe(data):
-        # TODO: improve this
-        return data['index']
-
-    server.add_method('subscribe', subscribe)
-    server.add_method('unsubscribe', unsubscribe)
-
-
-    async def clear(data):
-        await listfiles.clear()
-        return {}
-
-    server.add_method('clear', clear)
 
 
     http_server = HTTPServer(server, media_server, hostname=args.hostname, port=args.port, media_prefix=args.media_prefix, static_dir=args.static)
