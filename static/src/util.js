@@ -62,6 +62,6 @@ export function wait(delay) {
 
 
 export function setImdbImageWidth(url, width) {
-  return url.substring(0, url.search('@._V1_')) + `@._V1_SX${width}_AL_.jpg`;
+  return url.substring(0, url.search('._V1_')) + `._V1_SX${width}_AL_.jpg`;
 }
 

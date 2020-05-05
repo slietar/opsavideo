@@ -169,7 +169,7 @@ class IMDBDatabase:
 
 
 def transform_img_url(url):
-    return url[0:url.find("@._V1_")] + "@._V1_.jpg"
+    return url[0:url.find("._V1_")] + "._V1_.jpg"
 
 def run_chain(value, *args):
     for handler in args:
